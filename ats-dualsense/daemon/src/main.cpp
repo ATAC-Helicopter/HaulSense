@@ -368,8 +368,7 @@ static bool valid_packet(const AtsTelemetryPacket& t){
 #undef TELE_U32
 #undef TELE_S32
 #undef TELE_VEC
-    for(float v:t.wheel_suspension)if(!finite(v))return false;
-    for(float v:t.wheel_velocity)if(!finite(v))return false;
+    for(unsigned i=0;i<16;++i)if(!finite(t.wheel_suspension[i])||!finite(t.wheel_velocity[i]))return false;
     const float extra[]={t.rpm_limit,t.fuel_capacity,t.adblue_capacity,t.suspension_average,t.suspension_spread,t.wheel_ground_ratio,t.wheel_angular_velocity,t.max_wear,t.cargo_mass};
     for(float v:extra)if(!finite(v))return false;
     return t.last_event[47]==0&&t.truck_name[63]==0&&t.truck_brand[31]==0&&t.cargo[63]==0&&t.origin[47]==0&&t.destination[47]==0;
@@ -412,7 +411,7 @@ static std::string snapshot(const AtsTelemetryPacket&t,bool active,bool demo,con
     s<<"\"rpm_limit\":"<<t.rpm_limit<<",\"fuel_capacity\":"<<t.fuel_capacity<<",\"adblue_capacity\":"<<t.adblue_capacity<<",\"max_wear\":"<<t.max_wear
      <<",\"last_event\":"<<json_text(t.last_event)<<",\"event_sequence\":"<<t.event_sequence<<",\"cargo_mass\":"<<t.cargo_mass<<",\"truck_name\":"<<json_text(t.truck_name)<<",\"truck_brand\":"<<json_text(t.truck_brand)<<",\"cargo\":"<<json_text(t.cargo)
      <<",\"origin\":"<<json_text(t.origin)<<",\"destination\":"<<json_text(t.destination)<<",\"wheels\":[";
-    for(unsigned i=0;i<std::min(t.wheel_count,16u);++i){if(i)s<<",";s<<"{\"suspension\":";if(t.wheel_available[i]&1)s<<t.wheel_suspension[i];else s<<"null";
+    for(unsigned i=0;i<std::min(static_cast<unsigned>(t.wheel_count),16u);++i){if(i)s<<",";s<<"{\"suspension\":";if(t.wheel_available[i]&1)s<<t.wheel_suspension[i];else s<<"null";
         s<<",\"velocity\":";if(t.wheel_available[i]&4)s<<t.wheel_velocity[i];else s<<"null";s<<",\"ground\":";if(t.wheel_available[i]&2)s<<(bool)t.wheel_ground[i];else s<<"null";s<<"}";}
     s<<"]}}";return s.str();
 }

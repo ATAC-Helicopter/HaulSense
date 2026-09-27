@@ -2,7 +2,7 @@
 
 **Feel the long haul.** A small native Linux companion for American Truck Simulator under Proton, with a live truck dashboard and telemetry-driven DualSense effects.
 
-[Project page](https://fglabs.dev/projects/haulsense) · [Releases](https://github.com/ATAC-Helicopter/HaulSense/releases) · [Report a bug](https://github.com/ATAC-Helicopter/HaulSense/issues)
+[Project page](https://fglabs.dev/projects/haulsense) · [Releases](https://github.com/FGLabs-dev/HaulSense/releases) · [Report a bug](https://github.com/FGLabs-dev/HaulSense/issues)
 
 > Public alpha: automatic tests cover the SDK adapter, wire protocol, effect engine, local API and UI DOM. Full in-game driving qualification and visual browser review of this new dashboard are still pending. Feedback uses compatible rumble and adaptive triggers; USB audio haptics are not implemented.
 

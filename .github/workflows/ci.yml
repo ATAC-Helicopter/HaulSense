@@ -27,6 +27,11 @@ jobs:
           cmake --build build -j2
       - name: Test effects and SDK adapter
         run: ctest --test-dir build --output-on-failure
+      - name: Test packed SDK callback alignment
+        run: |
+          cmake -S . -B build-sanitized -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=undefined -fno-sanitize-recover=all" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=undefined"
+          cmake --build build-sanitized --target effects-tests plugin-tests -j2
+          ctest --test-dir build-sanitized --output-on-failure
       - name: Test real sockets, lifecycle and settings
         run: python3 tests/integration.py build
       - name: Test dashboard DOM and units

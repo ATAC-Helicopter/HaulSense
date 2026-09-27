@@ -23,6 +23,8 @@ int main(){
     CHECK(!channel_available(g,CHANNEL_speed_mps));
     scs_value_t speed{};speed.type=SCS_VALUE_TYPE_float;speed.value_float.value=22;
     on_value("truck.speed",SCS_U32_NIL,&speed,&bindings[CHANNEL_speed_mps]);CHECK(g.speed_mps==22&&channel_available(g,CHANNEL_speed_mps));
+    scs_value_t acceleration{};acceleration.type=SCS_VALUE_TYPE_fvector;acceleration.value_fvector={1,2,3};
+    on_value("truck.local.acceleration.linear",SCS_U32_NIL,&acceleration,&bindings[CHANNEL_accel]);CHECK(g.accel.x==1&&g.accel.y==2&&g.accel.z==3);
     on_event(SCS_TELEMETRY_EVENT_started,nullptr,nullptr);CHECK(sent==1&&!captured.paused&&captured.speed_mps==22);
     on_event(SCS_TELEMETRY_EVENT_frame_end,nullptr,nullptr);CHECK(sent==1);
     fake_time+=20;on_event(SCS_TELEMETRY_EVENT_frame_end,nullptr,nullptr);CHECK(sent==2);

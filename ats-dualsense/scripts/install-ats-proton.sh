@@ -30,7 +30,7 @@ PLUGINS="$GAME/bin/win_x64/plugins"
 mkdir -p "$PLUGINS"
 # Atomic replacement preserves the old mapped image while a running game exits.
 DEST="$PLUGINS/ats_dualsense_telemetry.dll"
-if [[ -f "$DEST" ]]; then cp -n "$DEST" "$DEST.pre-haulsense.bak" || true; fi
+if [[ -f "$DEST" && ! -e "$DEST.pre-haulsense.bak" ]]; then cp "$DEST" "$DEST.pre-haulsense.bak"; fi
 STAGED="$(mktemp "$PLUGINS/.haulsense-plugin.XXXXXX")"
 trap 'rm -f "$STAGED"' EXIT
 install -m644 "$DLL" "$STAGED"

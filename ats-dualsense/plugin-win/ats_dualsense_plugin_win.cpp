@@ -24,15 +24,15 @@ static unsigned registered_wheels{};
 static bool paused=true;
 static bool same(const char*a,const char*b){if(!a||!b)return false;while(*a&&*a==*b){++a;++b;}return *a==*b;}
 static void copy_text(char*dst,unsigned cap,const char*src){unsigned i=0;if(src)while(i+1<cap&&src[i]){dst[i]=src[i];++i;}dst[i]=0;}
-static void mark(ChannelId id,bool on){auto&mask=g.available[id/64];if(on)mask|=1ull<<(id%64);else mask&=~(1ull<<(id%64));}
+static void mark(ChannelId id,bool on){if(on)g.available[id/64]|=1ull<<(id%64);else g.available[id/64]&=~(1ull<<(id%64));}
 static void SCSAPIFUNC on_value(const char*,unsigned,const scs_value_t*v,void*ctx){
     auto&b=*(Binding*)ctx;mark(b.id,v!=nullptr);if(!v){memset(b.target,0,b.type==SCS_VALUE_TYPE_fvector?sizeof(WireVector):b.type==SCS_VALUE_TYPE_bool?1:4);return;}
     switch(v->type){
-    case SCS_VALUE_TYPE_float: *(float*)b.target=v->value_float.value;break;
-    case SCS_VALUE_TYPE_bool: *(unsigned char*)b.target=v->value_bool.value?1:0;break;
-    case SCS_VALUE_TYPE_s32: *(int*)b.target=v->value_s32.value;break;
-    case SCS_VALUE_TYPE_u32: *(unsigned*)b.target=v->value_u32.value;break;
-    case SCS_VALUE_TYPE_fvector: {auto&t=*(WireVector*)b.target;t={v->value_fvector.x,v->value_fvector.y,v->value_fvector.z};break;}
+    case SCS_VALUE_TYPE_float: memcpy(b.target,&v->value_float.value,sizeof(float));break;
+    case SCS_VALUE_TYPE_bool: {unsigned char value=v->value_bool.value?1:0;memcpy(b.target,&value,sizeof(value));}break;
+    case SCS_VALUE_TYPE_s32: memcpy(b.target,&v->value_s32.value,sizeof(int));break;
+    case SCS_VALUE_TYPE_u32: memcpy(b.target,&v->value_u32.value,sizeof(unsigned));break;
+    case SCS_VALUE_TYPE_fvector: {WireVector value{v->value_fvector.x,v->value_fvector.y,v->value_fvector.z};memcpy(b.target,&value,sizeof(value));break;}
     }
 }
 static void SCSAPIFUNC on_wheel(const char*name,unsigned index,const scs_value_t*v,void*){

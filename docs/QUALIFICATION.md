@@ -3,6 +3,7 @@
 ## Passed locally
 
 - Native GCC 13 Release build with LTO/size optimization and strict warnings.
+- Undefined-behavior sanitizer checks packed callbacks, packet validation and snapshot access. Scalars/vectors copy as bytes into packed wire fields; no unaligned scalar pointers escape the decoder.
 - CTest effects regression: separate left/right/hazard masks, side swap, center light, pause/master mute, zero-strength triggers, steady-terrain silence, finite wire validation and settings preservation.
 - Native harness compiles the exact plugin with official SDK headers and exercises callback values/unavailability, truck config, 50 Hz ceiling and pause/resume.
 - Real loopback HTTP/UDP integration: malformed/truncated/oversized/version-mismatched packets, directional output, pause/timeout, validated settings, Host/CSRF rejection and slow-client isolation. Tests use isolated ports so real ATS traffic cannot contaminate fixtures.

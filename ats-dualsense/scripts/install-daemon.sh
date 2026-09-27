@@ -19,7 +19,9 @@ install -m644 "$ROOT/systemd/haulsense.service" "$HOME/.config/systemd/user/haul
 if [[ ! -f "$CONFIG_DIR/config.conf" ]]; then
   install -m644 "$ROOT/config/config.conf" "$CONFIG_DIR/config.conf"
 else
-  cp -n "$CONFIG_DIR/config.conf" "$CONFIG_DIR/config.conf.pre-haulsense.bak" || true
+  if [[ ! -e "$CONFIG_DIR/config.conf.pre-haulsense.bak" ]]; then
+    cp "$CONFIG_DIR/config.conf" "$CONFIG_DIR/config.conf.pre-haulsense.bak"
+  fi
   echo "Preserved your customized settings: $CONFIG_DIR/config.conf"
 fi
 install -Dm644 "$ROOT/ui/haulsense.desktop" "$HOME/.local/share/applications/haulsense.desktop"

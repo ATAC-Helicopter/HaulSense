@@ -1,0 +1,11 @@
+[Unit]
+Description=ATS DualSense telemetry effects
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/ats-dualsense
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

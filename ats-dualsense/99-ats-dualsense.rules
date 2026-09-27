@@ -1,0 +1,7 @@
+# Sony DualSense + DualSense Edge hidraw access.
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="054c", ATTRS{idProduct}=="0ce6", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="054c", ATTRS{idProduct}=="0df2", TAG+="uaccess"
+
+# Exact per-player-LED control through Linux hid-playstation sysfs.
+# The LED class attributes are not normal device nodes, so explicitly make brightness writable.
+ACTION=="add|change", SUBSYSTEM=="leds", KERNEL=="*:white:player*", RUN+="/bin/chmod 0666 /sys%p/brightness"

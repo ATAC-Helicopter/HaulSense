@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+DLL="$ROOT/plugin-win/ats_dualsense_telemetry.dll"
+
+if [[ ! -f "$DLL" ]]; then
+  echo "Missing prebuilt DLL: $DLL" >&2
+  exit 1
+fi
+
+GAME="${ATS_DIR:-}"
+if [[ -z "$GAME" ]]; then
+  candidates=(
+    "/mnt/games/SteamLibrary/steamapps/common/American Truck Simulator"
+    "$HOME/.local/share/Steam/steamapps/common/American Truck Simulator"
+    "$HOME/.steam/steam/steamapps/common/American Truck Simulator"
+  )
+  for c in "${candidates[@]}"; do
+    if [[ -d "$c/bin/win_x64" ]]; then GAME="$c"; break; fi
+  done
+fi
+
+if [[ -z "$GAME" || ! -d "$GAME/bin/win_x64" ]]; then
+  echo "ATS Windows/Proton installation not found automatically." >&2
+  echo "Run: ATS_DIR='/path/to/American Truck Simulator' $0" >&2
+  exit 2
+fi
+
+PLUGINS="$GAME/bin/win_x64/plugins"
+mkdir -p "$PLUGINS"
+install -m644 "$DLL" "$PLUGINS/ats_dualsense_telemetry.dll"
+
+echo "Installed ATS telemetry plugin:"
+echo "  $PLUGINS/ats_dualsense_telemetry.dll"

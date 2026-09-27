@@ -1,0 +1,15 @@
+# Architecture
+
+The Windows x64 plugin uses the official, vendored SCS Telemetry SDK 1.14 headers. A shared channel registry generates packet fields, subscriptions, availability IDs and JSON values. The PE DLL is freestanding and imports only Winsock and GetTickCount64. It subscribes to changed values and explicitly requests null callbacks when channels become unavailable. Wall-clock sending is capped at 50 Hz, independent of the game's frame rate. Pause and shutdown bypass the rate cap to send neutral state immediately.
+
+A single Linux thread receives fixed-size UDP datagrams (v5 plus an exact legacy v4/175-byte migration adapter) and retains the newest valid packet. At most 64 packets are drained per iteration. Effects run at a 20 ms interval; the poll deadline rounds upwards to avoid spinning for fractional milliseconds. Inactive feedback sleeps longer. Effects are computed without controller hardware so diagnostics/UI still work. The hardware-free demo never opens HID/sysfs devices.
+
+The dashboard server binds only to 127.0.0.1. It accepts at most eight clients, bounds requests to 8 KiB and settings bodies to 2 KiB, handles nonblocking partial reads/writes and drops stalled clients after two seconds. A slow dashboard cannot block feedback. No CORS headers are granted, Host is restricted to the local dashboard and writes require a custom same-origin header. Frames are denied and MIME sniffing is disabled. This is a local utility, not a service intended for LAN exposure. Other processes running as the same user can control its local API; it is not an authentication boundary.
+
+Snapshots are serialized on request rather than continuously. The browser polls at 5 Hz while driving and 1 Hz while waiting, stops in hidden tabs, and holds a maximum of 120 chart samples. JSON and DOM inspection are bounded by the static SDK registry and 16 wheels. No network traffic is sent outside loopback by the application. The browser process is separate and is not included in daemon RSS/CPU measurements.
+
+HID transport is identified by the kernel bus type. Player LED paths are matched to the actual selected HID device. Brightness maxima are cached at discovery; unchanged LED states generate no sysfs write. HID player-mask ownership remains disabled during gameplay. Feedback caps and gains deliberately avoid permanent RPM or throttle vibration.
+
+Settings updates validate every supplied key before applying any change. Unknown keys, nonfinite/out-of-range numbers, duplicated keys and arbitrary paths are rejected. A replacement config is written beside the existing file and renamed atomically. Existing comments and unrelated keys survive. The old config directory is retained during the product rename.
+
+The legacy adapter marks availability as inferred in the UI and leaves all extended channels absent. It exists to keep a currently running old plugin compatible while the updated DLL is atomically replaced on disk for the next game launch. Legacy pause has only the 500 ms timeout, because the old plugin does not transmit pause events.

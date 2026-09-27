@@ -1,0 +1,16 @@
+name: Immersion feature
+description: Suggest a useful SDK-driven feature.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Driving situation and desired feedback
+    validations:
+      required: true
+  - type: textarea
+    id: sdk
+    attributes:
+      label: SDK evidence and performance considerations
+      description: If known, name the real channel/event. Synthetic feedback must be labelled.

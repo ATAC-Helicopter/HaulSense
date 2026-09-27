@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=HaulSense
+Comment=Truck telemetry and DualSense immersion cockpit
+Exec=xdg-open http://127.0.0.1:39056
+Icon=haulsense
+Categories=Game;Utility;
+Terminal=false

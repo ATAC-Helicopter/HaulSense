@@ -1,0 +1,23 @@
+name: Bug report
+description: Report a reproducible telemetry, dashboard or controller issue.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+      description: Include steps to reproduce and whether this is real driving or demo/fixture data.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Game, distro/kernel, controller and USB/Bluetooth
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized diagnostics or screenshot
+      description: Run haulsense --diagnostics. Do not include account details or credentials.

@@ -1,0 +1,14 @@
+[Unit]
+Description=HaulSense truck telemetry and DualSense immersion
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/haulsense
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+UMask=0077
+
+[Install]
+WantedBy=default.target

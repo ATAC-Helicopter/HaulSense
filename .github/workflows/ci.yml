@@ -1,0 +1,47 @@
+name: Build and test
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build-test:
+    name: Build and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Install build toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang lld
+      - name: Build native daemon and SDK harnesses
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j2
+      - name: Test effects and SDK adapter
+        run: ctest --test-dir build --output-on-failure
+      - name: Test real sockets, lifecycle and settings
+        run: python3 tests/integration.py build
+      - name: Test dashboard DOM and units
+        run: |
+          npm install --prefix .test-deps linkedom@0.18.12 --no-audit --no-fund
+          NODE_PATH="$PWD/.test-deps/node_modules" node tests/ui.mjs build/ui-state.json
+      - name: Build freestanding Windows x64 plugin
+        run: ./ats-dualsense/plugin-win/build-windows-dll.sh
+      - name: Check shell scripts and generated artifact imports
+        run: |
+          bash -n ats-dualsense/scripts/*.sh ats-dualsense/plugin-win/build-windows-dll.sh
+          objdump -p ats-dualsense/plugin-win/ats_dualsense_telemetry.dll | sed -n '/DLL Name/p'
+          ./ats-dualsense/scripts/package-release.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: haulsense-linux-x86_64-alpha
+          path: build/release/*
+          retention-days: 14

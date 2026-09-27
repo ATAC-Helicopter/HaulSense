@@ -1,0 +1,2 @@
+#pragma once
+static constexpr char dashboard_html[] = R"HAULSENSE(@DASHBOARD_HTML@)HAULSENSE";

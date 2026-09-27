@@ -1,0 +1,15 @@
+/build/
+/ats-dualsense/build/
+*.obj
+*.dll
+*.lib
+*.pdb
+*.exp
+*.deb
+*.tmp
+*.log
+.vscode/
+__pycache__/
+
+.test-deps/
+node_modules/

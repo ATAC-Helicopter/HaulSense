@@ -28,7 +28,13 @@ fi
 
 PLUGINS="$GAME/bin/win_x64/plugins"
 mkdir -p "$PLUGINS"
-install -m644 "$DLL" "$PLUGINS/ats_dualsense_telemetry.dll"
+# Atomic replacement preserves the old mapped image while a running game exits.
+DEST="$PLUGINS/ats_dualsense_telemetry.dll"
+if [[ -f "$DEST" ]]; then cp -n "$DEST" "$DEST.pre-haulsense.bak" || true; fi
+STAGED="$(mktemp "$PLUGINS/.haulsense-plugin.XXXXXX")"
+trap 'rm -f "$STAGED"' EXIT
+install -m644 "$DLL" "$STAGED"
+mv -f "$STAGED" "$DEST"
 
 echo "Installed ATS telemetry plugin:"
 echo "  $PLUGINS/ats_dualsense_telemetry.dll"

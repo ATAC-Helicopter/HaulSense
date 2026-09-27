@@ -6,6 +6,7 @@ class DualSense {
 public:
     ~DualSense();
     bool open_first();
+    bool alive() const;
     void close_device();
     bool connected() const { return fd_ >= 0; }
     bool bluetooth() const { return bluetooth_; }

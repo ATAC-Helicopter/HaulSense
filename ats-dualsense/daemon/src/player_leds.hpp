@@ -6,7 +6,7 @@
 
 class PlayerLeds {
 public:
-    bool discover();
+    bool discover(const std::string& hidraw_path = {});
     bool available() const { return available_; }
     bool writable() const { return writable_; }
     const std::string& group() const { return group_; }
@@ -19,4 +19,6 @@ private:
     bool available_ = false;
     bool writable_ = false;
     std::string group_;
+    std::array<int,5> maximum_{{1,1,1,1,1}};
+    uint8_t previous_ = 0xff;
 };

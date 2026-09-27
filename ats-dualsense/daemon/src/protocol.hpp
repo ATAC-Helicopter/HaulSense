@@ -1,69 +1,58 @@
 #pragma once
-#include <cstdint>
+// Fixed little-endian wire ABI, shared by the freestanding PE DLL and Linux daemon.
+using WireU8 = unsigned char;
+using WireU16 = unsigned short;
+using WireU32 = unsigned int;
+using WireU64 = unsigned long long;
+struct WireVector { float x{}, y{}, z{}; };
+enum ChannelId {
+#define TELE_FLOAT(n,c) CHANNEL_##n,
+#define TELE_BOOL(n,c) CHANNEL_##n,
+#define TELE_U32(n,c) CHANNEL_##n,
+#define TELE_S32(n,c) CHANNEL_##n,
+#define TELE_VEC(n,c) CHANNEL_##n,
+#include "channels.inc"
+#undef TELE_FLOAT
+#undef TELE_BOOL
+#undef TELE_U32
+#undef TELE_S32
+#undef TELE_VEC
+CHANNEL_COUNT
+};
 #pragma pack(push,1)
 struct AtsTelemetryPacket {
-    uint32_t magic = 0x41545344; // ATSD
-    uint16_t version = 4;
-    uint16_t size = sizeof(AtsTelemetryPacket);
-    uint64_t sequence = 0;
-
-    float speed_mps = 0;
-    float rpm = 0;
-    float rpm_limit = 2500;
-    float throttle = 0;
-    float brake = 0;
-    float clutch = 0;
-    float steering = 0;
-    float fuel = 0;
-    float fuel_capacity = 1;
-    float brake_air_pressure = 0;
-    float brake_temperature = 0;
-    float oil_pressure = 0;
-    float water_temperature = 0;
-    float battery_voltage = 0;
-    float accel_x = 0, accel_y = 0, accel_z = 0;
-    float cabin_angvel_x = 0, cabin_angvel_y = 0, cabin_angvel_z = 0;
-    float cabin_angacc_x = 0, cabin_angacc_y = 0, cabin_angacc_z = 0;
-    float nav_speed_limit = 0;
-    float max_wear = 0;
-
-    // Aggregated wheel data from SCS indexed channels.
-    float suspension_average = 0;
-    float suspension_spread = 0;
-    float wheel_ground_ratio = 1;
-    float wheel_angular_velocity = 0;
-
-    int32_t gear = 0;
-    uint32_t retarder_level = 0;
-    uint32_t wheel_count = 0;
-
-    uint8_t engine_enabled = 0;
-    uint8_t electric_enabled = 0;
-    uint8_t parking_brake = 0;
-    uint8_t left_blinker = 0;
-    uint8_t right_blinker = 0;
-    uint8_t left_blinker_light = 0;
-    uint8_t right_blinker_light = 0;
-    uint8_t hazards = 0;
-    uint8_t parking_lights = 0;
-    uint8_t low_beam = 0;
-    uint8_t high_beam = 0;
-    uint8_t beacon = 0;
-    uint8_t brake_light = 0;
-    uint8_t reverse_light = 0;
-    uint8_t wipers = 0;
-    uint8_t fuel_warning = 0;
-    uint8_t air_warning = 0;
-    uint8_t air_emergency = 0;
-    uint8_t oil_warning = 0;
-    uint8_t water_warning = 0;
-    uint8_t battery_warning = 0;
-    uint8_t cruise = 0;
-    uint8_t engine_brake = 0;
-    uint8_t differential_lock = 0;
-    uint8_t damage_warning = 0;
-    uint8_t damage_critical = 0;
-    uint8_t reserved[5]{};
+    WireU32 magic = 0x41545344;
+    WireU16 version = 5;
+    WireU16 size = sizeof(AtsTelemetryPacket);
+    WireU64 sequence{};
+    WireU64 available[2]{};
+    WireU8 paused{};
+#define TELE_FLOAT(n,c) float n{};
+#define TELE_BOOL(n,c) WireU8 n{};
+#define TELE_U32(n,c) WireU32 n{};
+#define TELE_S32(n,c) int n{};
+#define TELE_VEC(n,c) WireVector n{};
+#include "channels.inc"
+#undef TELE_FLOAT
+#undef TELE_BOOL
+#undef TELE_U32
+#undef TELE_S32
+#undef TELE_VEC
+    float rpm_limit = 2500, fuel_capacity = 1, adblue_capacity{};
+    float suspension_average{}, suspension_spread{}, wheel_ground_ratio = 1, wheel_angular_velocity{};
+    float max_wear{}, cargo_mass{};
+    WireU32 wheel_count{};
+    WireU8 cruise{}, damage_warning{}, damage_critical{};
+    float wheel_suspension[16]{}, wheel_velocity[16]{};
+    WireU8 wheel_ground[16]{}, wheel_available[16]{};
+    WireU32 event_sequence{};
+    char last_event[48]{};
+    char truck_name[64]{}, truck_brand[32]{}, cargo[64]{}, origin[48]{}, destination[48]{};
 };
 #pragma pack(pop)
-static_assert(sizeof(AtsTelemetryPacket) == 175);
+static_assert(sizeof(WireU64) == 8 && sizeof(float) == 4);
+static_assert(CHANNEL_COUNT <= 128);
+static_assert(sizeof(AtsTelemetryPacket) < 1400, "Must fit one LAN MTU");
+inline bool channel_available(const AtsTelemetryPacket& t, ChannelId id) {
+    return (t.available[id / 64] & (1ull << (id % 64))) != 0;
+}

@@ -6,6 +6,7 @@
 #include <vector>
 #include <fcntl.h>
 #include <linux/hidraw.h>
+#include <linux/input.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
 
@@ -41,6 +42,7 @@ void encode_feedback(uint8_t *out10,uint8_t position,uint8_t strength){
 
 DualSense::~DualSense(){ close_device(); }
 void DualSense::close_device(){ if(fd_>=0)::close(fd_); fd_=-1; path_.clear(); }
+bool DualSense::alive() const {hidraw_devinfo info{};return fd_>=0&&ioctl(fd_,HIDIOCGRAWINFO,&info)==0;}
 bool DualSense::open_first(){
     close_device();
     std::vector<std::filesystem::path> candidates;
@@ -60,7 +62,7 @@ bool DualSense::open_first(){
         int fd=::open(path.c_str(),O_RDWR|O_NONBLOCK); if(fd<0)continue;
         hidraw_devinfo info{}; if(ioctl(fd,HIDIOCGRAWINFO,&info)<0){::close(fd);continue;}
         if(info.vendor!=SONY||(info.product!=DUALSENSE&&info.product!=DUALSENSE_EDGE)){::close(fd);continue;}
-        int ds=0; bluetooth_=false; if(ioctl(fd,HIDIOCGRDESCSIZE,&ds)>=0) bluetooth_=ds>300;
+        bluetooth_=info.bustype==BUS_BLUETOOTH;
         fd_=fd; path_=path.string(); return true;
     }
     return false;

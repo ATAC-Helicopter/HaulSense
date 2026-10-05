@@ -25,6 +25,8 @@ else
   echo "Preserved your customized settings: $CONFIG_DIR/config.conf"
 fi
 install -Dm644 "$ROOT/ui/haulsense.desktop" "$HOME/.local/share/applications/haulsense.desktop"
+install -Dm755 "$ROOT/ui/haulsense-hud.py" "$HOME/.local/bin/haulsense-hud"
+install -Dm644 "$ROOT/ui/haulsense-hud.desktop" "$HOME/.local/share/applications/haulsense-hud.desktop"
 install -Dm644 "$ROOT/ui/haulsense.svg" "$HOME/.local/share/icons/hicolor/scalable/apps/haulsense.svg"
 systemctl --user daemon-reload
 echo "Installed HaulSense. Dashboard: http://127.0.0.1:39056"

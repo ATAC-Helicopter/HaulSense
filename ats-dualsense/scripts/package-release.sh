@@ -10,6 +10,7 @@ for part in config daemon plugin-win scripts systemd third_party ui; do
   mkdir -p "$STAGE/ats-dualsense/$part"
   cp -r "$ROOT/ats-dualsense/$part/." "$STAGE/ats-dualsense/$part/"
 done
+find "$STAGE" -type d -name __pycache__ -prune -exec rm -rf -- {} +
 install -m755 "$ROOT/build/ats-dualsense/daemon/haulsense" "$STAGE/ats-dualsense/bin/haulsense"
 rm -f "$STAGE/ats-dualsense/plugin-win/"*.lib "$STAGE/ats-dualsense/plugin-win/"*.obj "$STAGE/ats-dualsense/plugin-win/"*_stub.dll
 rm -f "$STAGE/ats-dualsense/systemd/ats-dualsense.service"

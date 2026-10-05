@@ -43,7 +43,6 @@ struct Config {
     uint8_t right_indicator_pair = 0x03;  // both right player LEDs
     uint8_t headlight_led_mask = 0x04;    // center player LED
     int indicator_step_ms = 135;
-    bool sysfs_player_leds = true;
     bool effects_enabled = true;
     bool reverse_cue = false;
     bool wiper_cue = false;
@@ -137,7 +136,7 @@ static Config load_config(const std::string& explicit_path){
             else if(k=="wiper_cue")c.wiper_cue=(v!="0"&&v!="false"&&v!="off");
             else if(k=="trailer_cue")c.trailer_cue=(v!="0"&&v!="false"&&v!="off");
             else if(k=="swap_indicators")c.swap_indicators=(v!="0"&&v!="false"&&v!="off");
-            else if(k=="sysfs_player_leds")c.sysfs_player_leds=(v!="0"&&v!="false"&&v!="off");
+            // Legacy sysfs_player_leds is intentionally ignored: all gameplay LED updates are atomic HID reports.
         }catch(...){ }
     }
     return c;
@@ -227,14 +226,14 @@ static Fx effects(const AtsTelemetryPacket&t,uint64_t ms,Clock::time_point now,R
 
     // PLAYER LEDs: center = truck lights, outer pairs = directional sequential indicators.
     const bool truck_lights_on=t.parking_lights||t.low_beam||t.high_beam;
-    if(truck_lights_on) f.leds|=cfg.headlight_led_mask;
-    auto sequential_mask=[&](bool requested,uint8_t inner,uint8_t pair)->uint8_t{
+    if(truck_lights_on && !left_requested && !right_requested) f.leds|=cfg.headlight_led_mask & 0x04;
+    auto sequential_mask=[&](bool requested,uint8_t inner,uint8_t pair,uint8_t side)->uint8_t{
         if(!requested || !combined_blink_phase) return 0;
         long elapsed=age_ms(now,rt.indicator_phase_start); if(!lamp_clock)elapsed%=700;
-        return elapsed<cfg.indicator_step_ms?inner:pair;
+        return (elapsed<cfg.indicator_step_ms?inner:pair) & side;
     };
-    f.leds|=sequential_mask(left_requested,cfg.swap_indicators?cfg.right_indicator_inner:cfg.left_indicator_inner,cfg.swap_indicators?cfg.right_indicator_pair:cfg.left_indicator_pair);
-    f.leds|=sequential_mask(right_requested,cfg.swap_indicators?cfg.left_indicator_inner:cfg.right_indicator_inner,cfg.swap_indicators?cfg.left_indicator_pair:cfg.right_indicator_pair);
+    f.leds|=sequential_mask(left_requested,cfg.swap_indicators?cfg.right_indicator_inner:cfg.left_indicator_inner,cfg.swap_indicators?cfg.right_indicator_pair:cfg.left_indicator_pair,cfg.swap_indicators?0x03:0x18);
+    f.leds|=sequential_mask(right_requested,cfg.swap_indicators?cfg.left_indicator_inner:cfg.right_indicator_inner,cfg.swap_indicators?cfg.left_indicator_pair:cfg.right_indicator_pair,cfg.swap_indicators?0x18:0x03);
 
     // Hazards own the RGB bar; normal indicators never touch it.
     if(hazard_requested){
@@ -321,26 +320,15 @@ static Fx effects(const AtsTelemetryPacket&t,uint64_t ms,Clock::time_point now,R
     return f;
 }
 
-static int led_test(DualSense& ds, PlayerLeds& leds, bool prefer_sysfs){
-    if(prefer_sysfs && leds.discover(ds.path()) && leds.writable()){
-        std::cout<<"Player LED sysfs diagnostic: "<<leds.group()<<"\n";
-        const uint8_t masks[]={0x10,0x08,0x04,0x02,0x01,0x00};
-        for(uint8_t m:masks){
-            std::cout<<"mask 0x"<<std::hex<<(int)m<<std::dec<<"\n";
-            leds.set_mask(m);
-            ds.apply(0,0,22,0,0,0,0,0,0,0,false);
-            std::this_thread::sleep_for(std::chrono::milliseconds(900));
-        }
-        leds.off(); ds.neutral(false); return 0;
-    }
-    std::cout<<"Player LED raw-HID fallback diagnostic. Install the v0.6 udev rule for exact per-LED control.\n";
+static int led_test(DualSense& ds){
+    std::cout<<"Player LED atomic instant-HID diagnostic.\n";
     const uint8_t masks[]={0x10,0x08,0x04,0x02,0x01,0x00};
     for(uint8_t m:masks){
         std::cout<<"mask 0x"<<std::hex<<(int)m<<std::dec<<"\n";
-        ds.apply(0,0,22,m,0,0,0,0,0,0,true);
+        if(!ds.apply(0,0,22,m,0,0,0,0,0,0,true)){std::cerr<<"LED report failed.\n";ds.neutral();return 2;}
         std::this_thread::sleep_for(std::chrono::milliseconds(900));
     }
-    ds.neutral(); return 0;
+    return ds.neutral()?0:2;
 }
 
 static void print_diagnostics(DualSense& ds, PlayerLeds& leds){
@@ -390,11 +378,11 @@ static std::string config_json(const Config& c){
 #undef CF
     s<<"\"effects_enabled\":"<<c.effects_enabled<<"}";return s.str();
 }
-static std::string snapshot(const AtsTelemetryPacket&t,bool active,bool demo,const DualSense&ds,const PlayerLeds&leds,const Fx& fx,const Config&cfg,long age,uint64_t rejected,unsigned protocol=5){
+static std::string snapshot(const AtsTelemetryPacket&t,bool active,bool demo,const DualSense&ds,const PlayerLeds&,const Fx& fx,const Config&cfg,long age,uint64_t rejected,unsigned protocol=5){
     std::ostringstream s;s<<std::boolalpha<<std::setprecision(6);
     s<<"{\"name\":\"HaulSense\",\"version\":\"0.8.0\",\"active\":"<<active<<",\"demo\":"<<demo<<",\"paused\":"<<(bool)t.paused
       <<",\"source_protocol\":"<<protocol<<",\"availability_known\":"<<(protocol==5)<<",\"controller\":"<<ds.connected()<<",\"transport\":"<<json_text(ds.connected()?(ds.bluetooth()?"Bluetooth":"USB"):"Disconnected")
-      <<",\"leds_available\":"<<leds.writable()<<",\"age_ms\":"<<std::max(0l,age)<<",\"rejected\":"<<rejected<<",\"sequence\":"<<t.sequence
+      <<",\"leds_available\":"<<ds.connected()<<",\"age_ms\":"<<std::max(0l,age)<<",\"rejected\":"<<rejected<<",\"sequence\":"<<t.sequence
       <<",\"config\":"<<config_json(cfg)<<",\"fx\":{\"rgb\":["<<(int)fx.r<<","<<(int)fx.g<<","<<(int)fx.b<<"],\"leds\":"<<(int)fx.leds
       <<",\"brake\":"<<(int)fx.ls<<",\"throttle\":"<<(int)fx.rs<<",\"low\":"<<(int)fx.ml<<",\"high\":"<<(int)fx.mr<<"},\"telemetry\":{";
 #define TELE_FLOAT(n,c) s<<"\"" #n "\":";if(channel_available(t,CHANNEL_##n))s<<t.n;else s<<"null";s<<",";
@@ -482,7 +470,7 @@ int main(int argc,char**argv){
     DualSense ds;PlayerLeds player_leds;
     if(!no_controller){ds.open_first();if(ds.connected())player_leds.discover(ds.path());}
     if(diagnostics){print_diagnostics(ds,player_leds);return 0;}
-    if(test_leds){if(!ds.connected()){std::cerr<<"Connect the DualSense first.\n";return 2;}return led_test(ds,player_leds,cfg.sysfs_player_leds);}
+    if(test_leds){if(!ds.connected()){std::cerr<<"Connect the DualSense first.\n";return 2;}return led_test(ds);}
     int s=socket(AF_INET,SOCK_DGRAM|SOCK_NONBLOCK|SOCK_CLOEXEC,0);if(s<0){perror("socket");return 3;}
     sockaddr_in a{};a.sin_family=AF_INET;a.sin_port=htons(telemetry_port);a.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
     if(bind(s,(sockaddr*)&a,sizeof(a))<0){perror("UDP bind (is another bridge running?)");close(s);return 4;}
@@ -493,16 +481,16 @@ int main(int argc,char**argv){
     AtsTelemetryPacket t{};uint64_t seq=0,rejected=0;unsigned source_protocol=5;auto last=Clock::now();auto last_probe=Clock::now()-std::chrono::seconds(5);
     auto last_health=Clock::now();
     auto next_tick=Clock::now();bool have=false,ann=false,timed=false;
-    Fx prev{255,255,255,255,255,255,255,255,255,255},current{};Runtime runtime{};uint8_t last_sysfs_leds=0xff;uint32_t last_debug_bits=~0u;
+    Fx prev{255,255,255,255,255,255,255,255,255,255},current{};Runtime runtime{};uint32_t last_debug_bits=~0u;
     while(running){
         auto now=Clock::now();
         if(ds.connected()&&now-last_health>std::chrono::seconds(2)){
             last_health=now;
-            if(!ds.alive()){player_leds.off();ds.close_device();last_probe=now;}
+            if(!ds.alive()){ds.close_device();last_probe=now;}
         }
         if(!no_controller&&!ds.connected()&&now-last_probe>std::chrono::seconds(2)){
             last_probe=now;
-            if(ds.open_first()){player_leds.discover(ds.path());last_sysfs_leds=0xff;prev={255,255,255,255,255,255,255,255,255,255};std::cout<<"DualSense connected: "<<ds.path()<<"\n";}
+            if(ds.open_first()){player_leds.discover(ds.path());prev={255,255,255,255,255,255,255,255,255,255};std::cout<<"DualSense connected: "<<ds.path()<<"\n";}
         }
         bool active=have&&!t.paused&&(mock||now-last<std::chrono::milliseconds(500));
         dashboard.tick([&](const std::string&route,const std::string&body,int&status){
@@ -534,7 +522,7 @@ int main(int argc,char**argv){
         active=have&&!t.paused&&(mock||now-last<std::chrono::milliseconds(500));
         if(!active){
             current={};runtime={};ann=false;
-            if(!timed){if(player_leds.writable())player_leds.off();if(ds.connected())ds.neutral(false);prev={};last_sysfs_leds=0;timed=true;}
+            if(!timed){if(ds.connected())ds.neutral();prev={};timed=true;}
             continue;
         }
         if(!ann){std::cout<<"Telemetry connected.\n";ann=true;runtime={};}timed=false;
@@ -543,17 +531,16 @@ int main(int argc,char**argv){
         if(telemetry_debug){uint32_t bits=(t.left_blinker?1u:0u)|(t.right_blinker?2u:0u)|((uint32_t)current.leds<<8);
             if(bits!=last_debug_bits){std::cout<<"signals L="<<(int)t.left_blinker<<" R="<<(int)t.right_blinker<<" ledMask=0x"<<std::hex<<(int)current.leds<<std::dec<<"\n";last_debug_bits=bits;}}
         if(!ds.connected())continue;
-        if(cfg.sysfs_player_leds&&player_leds.writable()&&current.leds!=last_sysfs_leds){if(player_leds.set_mask(current.leds))last_sysfs_leds=current.leds;}
-        // Player changes do not force redundant HID reports.
-        Fx compare=current;compare.leds=prev.leds;
-        if(std::memcmp(&compare,&prev,sizeof(Fx))!=0){
-            if(!ds.apply(current.r,current.g,current.b,0,current.lp,current.ls,current.rp,current.rs,current.mr,current.ml,false)){
-                player_leds.off();ds.close_device();last_probe=now;std::cout<<"Controller disconnected; waiting for reconnect.\n";
+        // LED state changes are independent from RGB/rumble/trigger updates.
+        // Re-sending the player command can restart firmware animation even
+        // when the requested mask is unchanged; send it only on mask changes.
+        if(std::memcmp(&current,&prev,sizeof(Fx))!=0){
+            if(!ds.apply(current.r,current.g,current.b,current.leds,current.lp,current.ls,current.rp,current.rs,current.mr,current.ml,current.leds!=prev.leds)){
+                ds.close_device();last_probe=now;std::cout<<"Controller disconnected; waiting for reconnect.\n";
             }prev=current;
         }
     }
-    if(player_leds.writable())player_leds.off();
-    if(ds.connected())ds.neutral(false);
+    if(ds.connected())ds.neutral();
     close(s);
     std::cout<<"HaulSense stopped; controller neutralized.\n";return 0;
 }

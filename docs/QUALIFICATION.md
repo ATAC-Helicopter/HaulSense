@@ -32,3 +32,43 @@ Pre-migration-adapter native binary: 183,608 bytes. The adapter adds a small amo
 - Longer real-game resource sampling.
 
 The running legacy plugin can be observed during migration, but that is not qualification of the new plugin. Public release stays prerelease until the open gates have evidence.
+
+## Instant player LED correction
+
+The user reported firmware center-out animation during a single directional signal. The prior sysfs path emits intermediate masks without the firmware instant flag. Gameplay and LED diagnostics now send the complete mask atomically with bit 5 set, through the same output report as the other effects. USB and Bluetooth report-byte tests verify left/right/hazard masks, instant application and neutral clearing. Historical sysfs brightness readback does not validate this new raw HID path. Physical driving confirmation remains required; do not treat report-byte tests as visual proof.
+
+The attached USB controller accepted all six instant-HID diagnostic writes and neutral clearing after installation. Both Steam and HaulSense currently hold read/write descriptors for the selected controller; this is evidence of possible competing output ownership, not proof of a Steam LED overwrite. The installed binary matches the locally tested build.
+
+On 2026-09-30 the per-game Steam Input override for ATS was temporarily changed from **Enable** to **Disable**. The user confirmed that disabling it prevents driving with the current ATS controller configuration, so it was restored to **Enable** and verified in Steam's Controller page. Steam's separate **Player Slot LED** preference was found **On** and changed to **Off** while keeping Steam Input enabled. The user then confirmed that driving controls worked but the physical LED pattern was still wrong. Neither Steam LED preference nor the instant-HID change is a qualified fix; direct DualSense input and HID ownership remain to investigate. ATS loaded the HaulSense 0.8.0 SDK DLL during the test. The compact browser HUD route and optional GTK HUD were installed; the native window was visually checked as a 313×175 transparent, always-above Xwayland window on the selected monitor. A second capture during real ATS driving displayed LIVE, 89 km/h, a 56 km/h limit and the Ford F150 truck from the SDK. The HUD process used about 23–25 MiB of cgroup memory; the native service about 3 MiB before driving. Borderless and exclusive-fullscreen overlay behavior still require real play verification.
+
+Protocol references: [hid-playstation output path](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-playstation.c) and [dualsensectl instant player LED implementation](https://github.com/nowrep/dualsensectl/blob/main/main.c).
+
+## HUD and side isolation update — 2026-10-05
+
+- Release build and all three CTest suites passed; all three suites also passed with undefined-behavior sanitizer. SDK harness now checks official job city/mass attributes and empty-job metadata clearing.
+- Real HTTP/UDP integration passed. Dashboard and new HUD DOM tests passed, including GPS without a job, job city, null channels, no route, units, hours/minutes, actual lamp phase, hazards, warnings, pause and demo labels. HUD regression is included in CI; remote CI has not been run in this session.
+- GTK rendered screenshots reviewed at scale 0.8 and 1.2, including long city names and all warnings; centered text, round limit and warning wrapping are visible. Web HUD rendered in isolated headless Firefox using a demo fixture. These supersede the earlier missing-render evidence for the compact HUD only, not for the complete dashboard/mobile matrix. Generated review images: `build/hud-review/`.
+- Native HUD HTTP requests now run on a background thread; GTK never waits on the HTTP timeout. Existing monitor, position, scale, opacity and units configuration was preserved.
+- Controller masks exclude the center during any logical directional signal; custom masks cannot illuminate the opposite pair. Player-only report tests assert that trigger/rumble/RGB control flags stay clear. USB/Bluetooth report byte tests pass; physical correctness and competing Steam Input output still need user confirmation.
+- A bounded 10 Hz player-only refresh limits stale masks from competing writers; this is not a guarantee of exclusive controller ownership. Full reports still update only when feedback changes. Idle/paused/master-muted operation does not perform this periodic refresh.
+- Installed daemon hash matches the tested Release binary. Installed daemon and GTK HUD were restarted without restarting ATS or changing Steam Input. Live game API reports v5, USB controller present and zero rejected packets, with GPS distance/ETA but an empty job destination. During the short sampled driving window no directional signal occurred, so that sample does not qualify the physical indicator fix.
+- Installed service memory sample: daemon about 2.2 MiB, HUD about 25.4 MiB (cgroup accounting, short observation, not a long-session performance benchmark).
+- No wire ABI or game-plugin behavior change was needed for this update. Freestanding DLL rebuild was unavailable on this session's PATH because clang/lld are absent; the running installed v5 plugin remains compatible.
+
+### Physical failure confirmed in the same session
+
+The user subsequently reported all four outer LEDs still animating. A live left-only capture showed logical left=true, right=false, hazards=false and computed masks 0x08/0x18/0x00; therefore ATS direction and HaulSense side selection were correct in that capture. With HaulSense stopped, a separate player-only USB writer held 0x38 (left pair + instant) for 8 seconds and 0x23 (right pair + instant) for 8 seconds at 50 Hz. The user still saw all four outer LEDs. The periodic refresh is therefore **not** a qualified fix, even at 50 Hz. Steam and HaulSense hold the same hidraw device; Steam's controller-specific `player_slot_led` is already 0. This establishes shared access, not yet proof of the actual competing writer. Do not claim the indicator issue resolved. Controller firmware feature report dates the build to 2025-07-04.
+
+### Isolation result and final implementation
+
+Further user-assisted physical tests in this session:
+
+- A single outer-LED command per side, with and without the instant bit, was reported as a correct single LED.
+- Single-command adjacent pairs were still reported as all four LEDs.
+- A single-LED inner-to-outer sequence was also reported as both sides simultaneously. This experimental fallback was reverted; it did not qualify the requested behavior.
+- With the user's explicit confirmation that ATS was parked and paused, Steam was suspended for a bounded direct-HID pair test, then resumed. The user still reported all four. A separate systemd timer guaranteed automatic resume; Steam and the original telemetry service were restored afterwards.
+- The equivalent test through the Linux kernel's five player brightness interfaces, again with Steam suspended and HaulSense stopped, read back `[0,0,0,1,1]` for left and `[1,1,0,0,0]` for right. The user still reported all four physically. The discrepancy persists outside HaulSense and with the Steam client suspended. Only one Sony DualSense HID device is present. This does not establish a specific firmware/hardware defect; direct visual evidence is needed before claiming that cause.
+
+The final code retains inner-to-pair side masks and suppresses the center during any directional request. It sends the player-control flag only when the player mask changes; RGB/rumble/trigger changes leave that flag clear. The unsuccessful periodic refresh was removed. Tests verify those report flags on USB and Bluetooth. **Physical directional LEDs remain unresolved.** No firmware update/reset or permanent Steam configuration changes were attempted.
+
+`ats-dualsense/scripts/diagnose-player-leds.py` preserves the explicit parked/paused isolation test for reproducibility. It checks the Steam PID and Sony USB HID identity, requires `--game-paused`, sets an independent resume timer, and restores Steam and the prior service state in cleanup. It is an interactive diagnostic, not an automated qualification test. Run it only while parked and paused.

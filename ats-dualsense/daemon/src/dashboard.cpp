@@ -1,5 +1,6 @@
 #include "dashboard.hpp"
 #include "dashboard_asset.hpp"
+#include "hud_asset.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <cctype>
@@ -54,6 +55,7 @@ void Dashboard::tick(const Handler& handler){
             if(!host)status=403;
             if(status==200){
                 if(request=="GET / HTTP/1.1"){body=dashboard_html;type="text/html; charset=utf-8";}
+                else if(request=="GET /hud HTTP/1.1"){body=hud_html;type="text/html; charset=utf-8";}
                 else if(request=="GET /api/state HTTP/1.1")body=handler("state","",status);
                 else if(post)body=handler("config",c.input.substr(end+4,length),status);
                 else status=404;

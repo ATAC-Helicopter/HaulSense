@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HaulSense HUD</title>
+<style>
+:root{color-scheme:dark;--panel:.7;--text:#f1f7f7;--accent:#e3f39a;--muted:#aebdc1;--warn:#ffb37d}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:transparent;color:var(--text);font-family:system-ui,sans-serif}body{padding:12px}
+#hud{position:relative;width:min(23rem,100%);padding:1rem 1.25rem;border:1px solid #d9e9df38;border-radius:18px;background:rgba(9,17,22,var(--panel));box-shadow:0 12px 38px #0007;font-variant-numeric:tabular-nums;text-align:center}
+.top{display:grid;grid-template-columns:2rem 1fr 2rem;align-items:center;gap:8px}.brand{font-size:.7rem;font-weight:700;letter-spacing:2px;color:var(--accent)}.indicator{color:#546168;font-size:1.2rem}.indicator.on{color:var(--warn);text-shadow:0 0 12px #ffb37d}
+.speedline{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:1rem;margin:.5rem 0}.speed{display:block;font-size:4.5rem;line-height:1.05;font-weight:350;letter-spacing:-.15rem}.speedunit{color:var(--muted);font-size:.8rem}.speed.over{color:var(--warn)}
+.label{color:var(--muted);font-size:.6rem;letter-spacing:1.4px;text-transform:uppercase}.limit{width:4rem;height:4rem;margin:.4rem auto 0;border:3px solid #f36758;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.5rem;font-weight:700;line-height:1}.limit.empty{border-color:#546168;color:var(--muted)}
+.route{margin-top:.75rem;padding-top:.75rem;border-top:1px solid #e4f3e51f;min-width:0}.city{margin:.2rem 0;font-size:1.1rem;font-weight:580;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.trip{color:var(--accent);font-size:.85rem;margin:.35rem 0}.meta{color:var(--muted);font-size:.7rem;line-height:1.7;overflow-wrap:anywhere}.warning{color:var(--warn);font-size:.7rem;margin:.4rem 0}.status{color:var(--muted);font-size:.6rem;letter-spacing:1px;margin-top:.4rem}.status.live{color:var(--accent)}
+#settings{position:absolute;right:8px;bottom:6px;border:0;background:transparent;color:var(--muted);cursor:pointer;padding:5px;font-size:.8rem}button:focus-visible{outline:2px solid var(--accent);border-radius:4px}
+details{border-top:1px solid #e4f3e51f;margin-top:13px;padding-top:9px;color:var(--muted);font-size:.75rem}details:not([open]){display:none}label{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:8px 0}select,input{accent-color:var(--accent);color:var(--text);background:#18262a;border:1px solid #46585b;border-radius:5px}input{width:45%;min-width:0}
+@media(max-width:300px){#hud{padding:.75rem}.speed{font-size:3.5rem}.speedline{gap:.5rem}}
+</style></head><body><main id="hud" aria-label="Telemetria camion">
+<div class="top"><span class="indicator" id="left" aria-label="Freccia sinistra">◀</span><span class="brand">HAULSENSE</span><span class="indicator" id="right" aria-label="Freccia destra">▶</span></div>
+<div class="speedline"><div><strong class="speed" id="speed">—</strong><div class="speedunit" id="speedunit">km/h</div></div><div><div class="label">Limite</div><div class="limit empty" id="limit">—</div></div></div>
+<div class="route"><div class="label" id="route-label">Navigazione</div><div id="city" class="city">—</div><div id="trip" class="trip">—</div><div id="info" class="meta">—</div><div id="warning" class="warning" hidden></div><div id="truck" class="meta">In attesa del camion</div></div>
+<div id="status" class="status" role="status">ATTESA</div><button id="settings" type="button" aria-label="Impostazioni HUD" aria-expanded="false">⚙</button>
+<details id="options"><label>Unità <select id="units"><option value="metric">km/h</option><option value="us">mph</option></select></label><label>Sfondo <input id="opacity" type="range" min="35" max="95" step="5"></label><label>Dimensione <input id="scale" type="range" min="80" max="130" step="5"></label></details>
+</main><script>
+'use strict';
+const $=id=>document.getElementById(id);
+const saved=key=>{try{return localStorage.getItem('haulsense-hud-'+key)}catch{return null}};
+const remember=(key,value)=>{try{localStorage.setItem('haulsense-hud-'+key,value)}catch{}};
+const number=(value,factor=1)=>Number.isFinite(value)?Math.round(Math.abs(value)*factor):null;
+let state=null;
+function render(){
+ const s=state,live=!!s?.active,t=live?s.telemetry:{},metric=$('units').value==='metric',factor=metric?3.6:2.236936;
+ const speed=number(t.speed_mps,factor),limit=t.nav_speed_limit>0?number(t.nav_speed_limit,factor):null;
+ $('status').textContent=live?(s.demo?'DEMO':'LIVE'):s?.paused?'PAUSA':'ATTESA';$('status').classList.toggle('live',live);
+ $('speed').textContent=speed??'—';$('speedunit').textContent=metric?'km/h':'mph';$('speed').classList.toggle('over',limit!==null&&speed!==null&&speed>limit+2);
+ $('limit').textContent=limit??'—';$('limit').classList.toggle('empty',limit===null);
+ const routed=!!t.destination||t.nav_distance>0||t.nav_time>0;
+ $('route-label').textContent=t.destination?'Destinazione incarico':'Navigazione';
+ $('city').textContent=t.destination||(routed?'Percorso GPS':live?'Nessun percorso':'—');
+ $('city').title=t.destination||'Il SDK fornisce il nome della città soltanto per un incarico.';
+ $('truck').textContent=live?`${t.truck_brand||''} ${t.truck_name||''}`.trim()||'Camion connesso':'In attesa del camion';
+ const dist=Number.isFinite(t.nav_distance)?(t.nav_distance/(metric?1000:1609.344)).toFixed(1):null;
+ const mins=Number.isFinite(t.nav_time)?Math.round(t.nav_time/60):null;
+ const duration=mins===null?'':mins>=60?`${Math.floor(mins/60)} h ${String(mins%60).padStart(2,'0')} min`:`${mins} min`;
+ $('trip').textContent=routed?[dist===null?'':dist+(metric?' km':' mi'),duration].filter(Boolean).join(' · ')||'—':'—';
+ const gear=t.displayed_gear,gearText=gear==null?'—':gear<0?'R'+Math.abs(gear):gear===0?'N':String(gear);
+ const info=['Marcia '+gearText];if(Number.isFinite(t.fuel_range))info.push('Autonomia '+Math.round(t.fuel_range/(metric?1:1.609344))+(metric?' km':' mi'));
+ if(t.cruise_speed>0)info.push('Cruise '+number(t.cruise_speed,factor));$('info').textContent=live?info.join(' · '):'—';
+ const warnings=[['air_emergency','PRESSIONE ARIA'],['fuel_warning','RISERVA'],['water_warning','TEMPERATURA'],['oil_warning','OLIO'],['battery_warning','BATTERIA'],['parking_brake','FRENO A MANO']].filter(([key])=>t[key]).map(([,label])=>label);
+ $('warning').textContent=warnings.join(' · ');$('warning').hidden=!warnings.length;
+ for(const side of ['left','right'])$(''+side).classList.toggle('on',live&&!!(t[side+'_blinker_light']??(t[side+'_blinker']||t.hazards)));
+}
+function appearance(){document.documentElement.style.setProperty('--panel',String(Number($('opacity').value)/100));document.documentElement.style.fontSize=(16*Number($('scale').value)/100)+'px';}
+$('units').value=saved('units')==='us'?'us':'metric';$('opacity').value=saved('opacity')||'70';$('scale').value=saved('scale')||'100';appearance();
+for(const id of ['units','opacity','scale'])$(id).addEventListener('input',()=>{remember(id,$(id).value);appearance();render()});
+$('settings').addEventListener('click',()=>{const open=!$('options').open;$('options').open=open;$('settings').setAttribute('aria-expanded',String(open))});
+async function poll(){try{const response=await fetch('/api/state',{cache:'no-store',signal:AbortSignal.timeout(900)});if(!response.ok)throw Error('Disconnected');const next=await response.json();state=next&&typeof next.telemetry==='object'&&next.telemetry?next:null}catch{state=null}render();setTimeout(poll,document.hidden?1200:state?.active?250:700)}poll();
+</script></body></html>

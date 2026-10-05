@@ -1,0 +1,2 @@
+#pragma once
+inline constexpr char hud_html[] = R"HAULSENSE_HUD(@HUD_HTML@)HAULSENSE_HUD";

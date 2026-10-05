@@ -1,4 +1,5 @@
 // Native harness for the exact freestanding plugin source and official SDK ABI.
+#include "../ats-dualsense/third_party/scs-sdk/include/common/scssdk_telemetry_common_configs.h"
 #define __declspec(x)
 #define __stdcall
 #include "../ats-dualsense/plugin-win/ats_dualsense_plugin_win.cpp"
@@ -34,6 +35,14 @@ int main(){
     scs_named_value_t attrs[3]{};attrs[0].name="name";attrs[0].value.type=SCS_VALUE_TYPE_string;attrs[0].value.value_string.value="W900";
     attrs[1].name="fuel.capacity";attrs[1].value.type=SCS_VALUE_TYPE_float;attrs[1].value.value_float.value=450;
     scs_telemetry_configuration_t config{"truck",attrs};on_event(SCS_TELEMETRY_EVENT_configuration,&config,nullptr);CHECK(same(g.truck_name,"W900")&&g.fuel_capacity==450);
+    scs_named_value_t job[4]{};
+    job[0].name=SCS_TELEMETRY_CONFIG_ATTRIBUTE_destination_city;job[0].value.type=SCS_VALUE_TYPE_string;job[0].value.value_string.value="Albuquerque";
+    job[1].name=SCS_TELEMETRY_CONFIG_ATTRIBUTE_source_city;job[1].value.type=SCS_VALUE_TYPE_string;job[1].value.value_string.value="Flagstaff";
+    job[2].name=SCS_TELEMETRY_CONFIG_ATTRIBUTE_cargo_mass;job[2].value.type=SCS_VALUE_TYPE_float;job[2].value.value_float.value=12000;
+    config={SCS_TELEMETRY_CONFIG_job,job};on_event(SCS_TELEMETRY_EVENT_configuration,&config,nullptr);
+    CHECK(same(g.destination,"Albuquerque")&&same(g.origin,"Flagstaff")&&g.cargo_mass==12000);
+    scs_named_value_t empty[1]{};config={SCS_TELEMETRY_CONFIG_job,empty};on_event(SCS_TELEMETRY_EVENT_configuration,&config,nullptr);
+    CHECK(!g.destination[0]&&!g.origin[0]&&!g.cargo[0]&&g.cargo_mass==0);
     scs_telemetry_shutdown();CHECK(captured.paused);
     puts("SDK ABI, availability, pause/resume, 50 Hz ceiling, truck configuration: passed");
 }

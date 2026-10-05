@@ -9,7 +9,7 @@
 ## What it does
 
 - **A cockpit that earns its space:** speed, displayed gear, RPM, cruise, route/ETA, fuel consumption/range, brake air, coolant/oil, battery, inputs, wheel contact and component condition. Metric and US units.
-- **Directional white LED masks:** software requests separate left/right inner → inner+outer → off sweeps, with the center off during signals. The attached controller still illuminates both sides during physical tests, including direct Linux-driver tests with Steam suspended. This behavior is unresolved; side calibration alone is not a qualified fix.
+- **Revision-aware white LEDs:** independent revisions retain left/right sweeps. Standard DualSense generations 4 and 5 have mirrored player LED pairs; their turn signals appear in the HUD only, while white LEDs remain available for truck lights and hazards. Unrecognized revisions and DualSense Edge still require physical qualification.
 - **Adaptive L2 brakes**, a subtle R2 full-throttle cue and restrained heavy-brake texture. Setting trigger strength to zero disables all resistance, including low-air cues.
 - **Event-driven immersion:** gear shifts, road impacts, engine starts, retarder, engine brake, parking brake, trailer coupling, lift axle and SDK gameplay events. Delivery/fine acknowledgements have distinct colours. Optional gentle reverse and wiper rhythms.
 - **Calm lightbar:** blue driving/lights, white reverse, amber hazards, breathing gold beacon. Engine warnings are gated by engine state; critical wear starts at 85%.
@@ -79,9 +79,9 @@ haulsense --led-test
 systemctl --user start haulsense.service
 ```
 
-Stop the service before launching another daemon instance or an LED test. LED discovery is associated with the selected HID device, including when several controllers are connected. Live player LED control sends the complete five-bit mask in one HID report with the instant-update flag. Physical testing still showed unwanted bilateral animation even with HaulSense stopped and Steam suspended. The cause is not established; see the qualification record. Sysfs discovery is diagnostic only; legacy `sysfs_player_leds` settings are ignored. The diagnostic lights each physical LED separately through the same instant HID path.
+Stop the service before launching another daemon instance or an LED test. LED discovery is associated with the selected HID device, including when several controllers are connected. Live player LED control sends the complete five-bit mask in one HID report with the instant-update flag. Video review of the attached generation-5 controller confirms mirrored inner and outer pairs. Its read-only hardware report is `0x00000514`. Generation 4 mirroring is also documented by other controller implementations; see the qualification record. Sysfs discovery is diagnostic only; legacy `sysfs_player_leds` settings are ignored. The diagnostic requests each LED bit separately; mirrored hardware physically lights the corresponding pair.
 
-If you use Steam Input to drive, leave it enabled for ATS. In Steam's **Settings → Controller → your DualSense → Calibration & Advanced Settings → LED Settings**, set **Player Slot LED** to **Off** to disable Steam’s own player assignment. This setting was already off during the unresolved physical tests and is not a confirmed repair. This is a controller-wide Steam preference. HaulSense's directional LEDs are still controlled by its own service; the combination needs a visual check on your controller.
+If you use Steam Input to drive, leave it enabled for ATS. In Steam's **Settings → Controller → your DualSense → Calibration & Advanced Settings → LED Settings**, set **Player Slot LED** to **Off** to disable Steam’s own player assignment. This setting was already off during the physical tests; it cannot separate hardware-mirrored pairs. This is a controller-wide Steam preference. HaulSense detects known mirrored revisions and uses HUD-only turn signals on them.
 
 Settings remain in `~/.config/ats-dualsense/config.conf` for migration compatibility, or `$XDG_CONFIG_HOME/ats-dualsense/config.conf` when set. `--config PATH` overrides the location. The dashboard saves only known settings and preserves other user keys.
 
@@ -101,7 +101,7 @@ Keeps user settings and the udev rule. Third-party SDK notices are in `ats-duals
 
 The native HUD and `/hud` now center their labels, speed, limit and route data. GPS distance/ETA remain visible without a job; the name of a city is only available for a job destination. The HUD also displays gear, fuel range, cruise target and contextual warnings, with metric/US conversion and stale-data clearing. Native HTTP requests run in a background thread so dragging and menus stay responsive. Existing HUD position, monitor, units, opacity and scale preferences are preserved.
 
-Directional player LED masks sweep from inner to outer on the selected side, with the center off during signals; hazards sweep both sides. Player LED commands are sent only on mask changes, independently of rumble, triggers and RGB updates. Physical directional behavior remains unresolved and is tracked in the qualification record. See [SDK capabilities and further options](docs/SDK-CAPABILITIES.md).
+On independent revisions, directional player LED masks sweep from inner to outer on the selected side, with the center off during signals; hazards sweep both sides. On known mirrored revisions, individual turns use HUD arrows and leave the center truck-light indicator available. Player LED commands are sent only on mask changes, independently of rumble, triggers and RGB updates. Known mirrored revisions cannot show independent physical directions; unknown revisions still need visual qualification. See [SDK capabilities and further options](docs/SDK-CAPABILITIES.md).
 
 HUD regression: `NODE_PATH=/path/to/linkedom/node_modules node tests/hud.mjs`. Screenshots used for local visual review are in `build/hud-review/` (generated, not release assets).
 

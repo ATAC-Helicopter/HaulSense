@@ -317,7 +317,10 @@ class Hud:
         self.warning.set_visible(bool(message))
         context = self.limit.get_style_context()
         (context.add_class if limit is None else context.remove_class)("empty")
-        for widget, enabled in ((self.left, telemetry.get("left_blinker_light") if telemetry.get("left_blinker_light") is not None else telemetry.get("left_blinker") or telemetry.get("hazards")), (self.right, telemetry.get("right_blinker_light") if telemetry.get("right_blinker_light") is not None else telemetry.get("right_blinker") or telemetry.get("hazards"))):
+        lamp_phase = (True if telemetry.get("left_blinker_light") is None and telemetry.get("right_blinker_light") is None
+                      else bool(telemetry.get("left_blinker_light") or telemetry.get("right_blinker_light")))
+        for widget, side in ((self.left, "left"), (self.right, "right")):
+            enabled = bool(telemetry.get(side + "_blinker") or telemetry.get("hazards")) and lamp_phase
             context = widget.get_style_context()
             (context.add_class if enabled else context.remove_class)("on")
         return True

@@ -33,7 +33,7 @@ Pre-migration-adapter native binary: 183,608 bytes. The adapter adds a small amo
 
 The running legacy plugin can be observed during migration, but that is not qualification of the new plugin. Public release stays prerelease until the open gates have evidence.
 
-## Instant player LED correction
+## Earlier instant player LED investigation
 
 The user reported firmware center-out animation during a single directional signal. The prior sysfs path emits intermediate masks without the firmware instant flag. Gameplay and LED diagnostics now send the complete mask atomically with bit 5 set, through the same output report as the other effects. USB and Bluetooth report-byte tests verify left/right/hazard masks, instant application and neutral clearing. Historical sysfs brightness readback does not validate this new raw HID path. Physical driving confirmation remains required; do not treat report-byte tests as visual proof.
 
@@ -43,7 +43,7 @@ On 2026-09-30 the per-game Steam Input override for ATS was temporarily changed 
 
 Protocol references: [hid-playstation output path](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-playstation.c) and [dualsensectl instant player LED implementation](https://github.com/nowrep/dualsensectl/blob/main/main.c).
 
-## HUD and side isolation update — 2026-10-05
+## Earlier HUD and side isolation investigation — 2026-10-05
 
 - Release build and all three CTest suites passed; all three suites also passed with undefined-behavior sanitizer. SDK harness now checks official job city/mass attributes and empty-job metadata clearing.
 - Real HTTP/UDP integration passed. Dashboard and new HUD DOM tests passed, including GPS without a job, job city, null channels, no route, units, hours/minutes, actual lamp phase, hazards, warnings, pause and demo labels. HUD regression is included in CI; remote CI has not been run in this session.
@@ -69,6 +69,17 @@ Further user-assisted physical tests in this session:
 - With the user's explicit confirmation that ATS was parked and paused, Steam was suspended for a bounded direct-HID pair test, then resumed. The user still reported all four. A separate systemd timer guaranteed automatic resume; Steam and the original telemetry service were restored afterwards.
 - The equivalent test through the Linux kernel's five player brightness interfaces, again with Steam suspended and HaulSense stopped, read back `[0,0,0,1,1]` for left and `[1,1,0,0,0]` for right. The user still reported all four physically. The discrepancy persists outside HaulSense and with the Steam client suspended. Only one Sony DualSense HID device is present. This does not establish a specific firmware/hardware defect; direct visual evidence is needed before claiming that cause.
 
-The final code retains inner-to-pair side masks and suppresses the center during any directional request. It sends the player-control flag only when the player mask changes; RGB/rumble/trigger changes leave that flag clear. The unsuccessful periodic refresh was removed. Tests verify those report flags on USB and Bluetooth. **Physical directional LEDs remain unresolved.** No firmware update/reset or permanent Steam configuration changes were attempted.
+At this stage, the code retained inner-to-pair side masks and suppresses the center during any directional request. It sends the player-control flag only when the player mask changes; RGB/rumble/trigger changes leave that flag clear. The unsuccessful periodic refresh was removed. Tests verify those report flags on USB and Bluetooth. **Side isolation was unresolved at this stage; the video/revision follow-up below supersedes that conclusion for the attached device.** No firmware update/reset or permanent Steam configuration changes were attempted.
 
 `ats-dualsense/scripts/diagnose-player-leds.py` preserves the explicit parked/paused isolation test for reproducibility. It checks the Steam PID and Sony USB HID identity, requires `--game-paused`, sets an independent resume timer, and restores Steam and the prior service state in cleanup. It is an interactive diagnostic, not an automated qualification test. Run it only while parked and paused.
+
+
+## Video and hardware revision follow-up — October 5, 2026
+
+The user supplied a private 3.375-second, 24 fps controller video. Frame review shows both inner player LEDs at 0.042–0.125 seconds, all four outer LEDs at 0.167–0.375 seconds, then off; subsequent cycles repeat this symmetric sequence. The center is off. The RGB side strips remain blue and are distinct from the blinking white indicators. The video is retained locally and is not published.
+
+A read-only firmware feature report (`0x20`, 64 bytes) on the same USB controller returns hardware info `0x00000514` at bytes 24–27: generation 5, trial 0x14. This supersedes the earlier unknown-cause conclusion for the attached device: its physical behavior is consistent with mirrored inner/outer LED pairs. It is a revision capability limitation, not evidence that ATS requests both turns.
+
+Primary implementation sources document generation 4 mirroring: [SpecialK output layout](https://github.com/SpecialKO/XInput_HID/blob/master/dualsense.cpp) and [DualSense Client lighting controls](https://dualsenseclient.github.io/DualSenseClient/guides/light-control/). Generation 5 is classified from the attached device's report plus the user video, not from a claim that these sources qualify all generation-5 devices. [Linux hid-playstation](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-playstation.c) supplies the firmware-report hardware offset and transport layout.
+
+At the user's request, known standard generation-4/5 controllers now use HUD-only individual turns, keeping white LEDs for truck lights and hazards. Generations 2/3 retain directional requests. Unknown generations and Edge remain explicitly unqualified. Snapshot/diagnostics expose hardware info and LED layout; cockpit/HUD arrows use logical turn channels, not the player mask. Automated regressions cover revision classification, lights/turns/hazards on mirrored hardware and logical HUD isolation even when both physical lamp channels are true. Live follow-up of the new behavior still requires user confirmation. The broader driving/USB/Bluetooth/Edge qualification gates remain open.

@@ -44,7 +44,8 @@ function render(){
  if(t.cruise_speed>0)info.push('Cruise '+number(t.cruise_speed,factor));$('info').textContent=live?info.join(' · '):'—';
  const warnings=[['air_emergency','PRESSIONE ARIA'],['fuel_warning','RISERVA'],['water_warning','TEMPERATURA'],['oil_warning','OLIO'],['battery_warning','BATTERIA'],['parking_brake','FRENO A MANO']].filter(([key])=>t[key]).map(([,label])=>label);
  $('warning').textContent=warnings.join(' · ');$('warning').hidden=!warnings.length;
- for(const side of ['left','right'])$(''+side).classList.toggle('on',live&&!!(t[side+'_blinker_light']??(t[side+'_blinker']||t.hazards)));
+ const lampPhase=t.left_blinker_light==null&&t.right_blinker_light==null?true:!!(t.left_blinker_light||t.right_blinker_light);
+ for(const side of ['left','right'])$(side).classList.toggle('on',live&&!!(t[side+'_blinker']||t.hazards)&&lampPhase);
 }
 function appearance(){document.documentElement.style.setProperty('--panel',String(Number($('opacity').value)/100));document.documentElement.style.fontSize=(16*Number($('scale').value)/100)+'px';}
 $('units').value=saved('units')==='us'?'us':'metric';$('opacity').value=saved('opacity')||'70';$('scale').value=saved('scale')||'100';appearance();

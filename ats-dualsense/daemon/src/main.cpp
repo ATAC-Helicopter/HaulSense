@@ -193,7 +193,7 @@ static void update_runtime(Runtime& rt,const AtsTelemetryPacket&t,Clock::time_po
     rt.indicator_phase=combined_phase; rt.direction=direction; rt.trailer_connected=t.trailer_connected; rt.lift_axle=t.lift_axle; rt.susp_spread=t.suspension_spread;
 }
 
-static Fx effects(const AtsTelemetryPacket&t,uint64_t ms,Clock::time_point now,Runtime&rt,const Config&cfg){
+static Fx effects(const AtsTelemetryPacket&t,uint64_t ms,Clock::time_point now,Runtime&rt,const Config&cfg,bool mirrored_player_leds=false){
     Fx f{0,0,0,0,0,0,0,0,0,0};
     if(!t.electric_enabled || t.paused || !cfg.effects_enabled) {rt={};return f;}
 
@@ -226,9 +226,9 @@ static Fx effects(const AtsTelemetryPacket&t,uint64_t ms,Clock::time_point now,R
 
     // PLAYER LEDs: center = truck lights, outer pairs = directional sequential indicators.
     const bool truck_lights_on=t.parking_lights||t.low_beam||t.high_beam;
-    if(truck_lights_on && !left_requested && !right_requested) f.leds|=cfg.headlight_led_mask & 0x04;
+    if(truck_lights_on && !hazard_requested && (mirrored_player_leds || (!left_requested && !right_requested))) f.leds|=cfg.headlight_led_mask & 0x04;
     auto sequential_mask=[&](bool requested,uint8_t inner,uint8_t pair,uint8_t side)->uint8_t{
-        if(!requested || !combined_blink_phase) return 0;
+        if(!requested || !combined_blink_phase || (mirrored_player_leds && !hazard_requested)) return 0;
         long elapsed=age_ms(now,rt.indicator_phase_start); if(!lamp_clock)elapsed%=700;
         return (elapsed<cfg.indicator_step_ms?inner:pair) & side;
     };
@@ -335,6 +335,11 @@ static void print_diagnostics(DualSense& ds, PlayerLeds& leds){
     std::cout<<"HaulSense diagnostics\n";
     if(ds.connected()) std::cout<<"Controller: "<<ds.path()<<" ("<<(ds.bluetooth()?"Bluetooth":"USB")<<")\n";
     else std::cout<<"Controller: not currently connected/writable\n";
+    if(ds.connected()){
+        std::cout<<"Hardware info: 0x"<<std::hex<<ds.hardware_version()<<std::dec<<"\n";
+        const auto layout=ds.player_led_layout();
+        std::cout<<"Player LED layout: "<<(layout==DualSense::PlayerLedLayout::Mirrored?"mirrored pairs; turn indicators use HUD only":layout==DualSense::PlayerLedLayout::Independent?"independent LEDs":"unknown; physical qualification required")<<"\n";
+    }
     if(leds.discover(ds.path())){
         std::cout<<"Player LED group: "<<leds.group()<<"\n";
         std::cout<<"Player LED sysfs: "<<(leds.writable()?"writable":"found but not writable; run scripts/install-udev.sh")<<"\n";
@@ -382,7 +387,9 @@ static std::string snapshot(const AtsTelemetryPacket&t,bool active,bool demo,con
     std::ostringstream s;s<<std::boolalpha<<std::setprecision(6);
     s<<"{\"name\":\"HaulSense\",\"version\":\"0.8.0\",\"active\":"<<active<<",\"demo\":"<<demo<<",\"paused\":"<<(bool)t.paused
       <<",\"source_protocol\":"<<protocol<<",\"availability_known\":"<<(protocol==5)<<",\"controller\":"<<ds.connected()<<",\"transport\":"<<json_text(ds.connected()?(ds.bluetooth()?"Bluetooth":"USB"):"Disconnected")
-      <<",\"leds_available\":"<<ds.connected()<<",\"age_ms\":"<<std::max(0l,age)<<",\"rejected\":"<<rejected<<",\"sequence\":"<<t.sequence
+      <<",\"leds_available\":"<<ds.connected()<<",\"hardware_version\":"<<ds.hardware_version()
+      <<",\"player_led_layout\":"<<json_text(ds.player_led_layout()==DualSense::PlayerLedLayout::Mirrored?"mirrored":ds.player_led_layout()==DualSense::PlayerLedLayout::Independent?"independent":"unknown")
+      <<",\"age_ms\":"<<std::max(0l,age)<<",\"rejected\":"<<rejected<<",\"sequence\":"<<t.sequence
       <<",\"config\":"<<config_json(cfg)<<",\"fx\":{\"rgb\":["<<(int)fx.r<<","<<(int)fx.g<<","<<(int)fx.b<<"],\"leds\":"<<(int)fx.leds
       <<",\"brake\":"<<(int)fx.ls<<",\"throttle\":"<<(int)fx.rs<<",\"low\":"<<(int)fx.ml<<",\"high\":"<<(int)fx.mr<<"},\"telemetry\":{";
 #define TELE_FLOAT(n,c) s<<"\"" #n "\":";if(channel_available(t,CHANNEL_##n))s<<t.n;else s<<"null";s<<",";
@@ -527,7 +534,7 @@ int main(int argc,char**argv){
         }
         if(!ann){std::cout<<"Telemetry connected.\n";ann=true;runtime={};}timed=false;
         auto ms=std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-        current=effects(t,ms,now,runtime,cfg);
+        current=effects(t,ms,now,runtime,cfg,ds.player_led_layout()==DualSense::PlayerLedLayout::Mirrored);
         if(telemetry_debug){uint32_t bits=(t.left_blinker?1u:0u)|(t.right_blinker?2u:0u)|((uint32_t)current.leds<<8);
             if(bits!=last_debug_bits){std::cout<<"signals L="<<(int)t.left_blinker<<" R="<<(int)t.right_blinker<<" ledMask=0x"<<std::hex<<(int)current.leds<<std::dec<<"\n";last_debug_bits=bits;}}
         if(!ds.connected())continue;

@@ -13,6 +13,13 @@ int main(){
     t.low_beam=1;f=effects(t,1360,now+std::chrono::milliseconds(360),rt,cfg);assert(f.leds==0x1b);
     cfg.swap_indicators=true;t.hazards=0;t.right_blinker=0;t.left_blinker=1;rt={};f=effects(t,1000,now,rt,cfg);assert(f.leds==0x02);
     cfg.swap_indicators=false;t.low_beam=0;t.left_blinker=0;t.right_blinker=1;
+    // Mirrored hardware cannot express direction. Preserve lights, hazards and other effects.
+    t.low_beam=1;rt={};f=effects(t,1000,now,rt,cfg,true);assert(f.leds==4);
+    t.low_beam=0;rt={};f=effects(t,1000,now,rt,cfg,true);assert(f.leds==0);
+    t.right_blinker=0;t.left_blinker=1;rt={};f=effects(t,1000,now,rt,cfg,true);assert(f.leds==0);
+    t.hazards=1;rt={};f=effects(t,1000,now,rt,cfg,true);assert(f.leds==0x0a);
+    f=effects(t,1150,now+std::chrono::milliseconds(150),rt,cfg,true);assert(f.leds==0x1b);
+    t.hazards=0;t.left_blinker=0;t.right_blinker=1;
     rt={};t.left_blinker_light=t.right_blinker_light=0;
     f=effects(t,1000,now,rt,cfg);assert(f.leds==0);
     t.right_blinker_light=1;f=effects(t,1020,now+std::chrono::milliseconds(20),rt,cfg);assert(f.leds==2);

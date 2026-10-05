@@ -10,6 +10,13 @@
 #include <unistd.h>
 
 int main() {
+    using Layout=DualSense::PlayerLedLayout;
+    assert(DualSense::classify_player_leds(0x313,false)==Layout::Independent);
+    assert(DualSense::classify_player_leds(0x414,false)==Layout::Mirrored);
+    assert(DualSense::classify_player_leds(0x514,false)==Layout::Mirrored);
+    assert(DualSense::classify_player_leds(0,false)==Layout::Unknown);
+    assert(DualSense::classify_player_leds(0x614,false)==Layout::Unknown);
+    assert(DualSense::classify_player_leds(0x514,true)==Layout::Unknown);
     for (bool bluetooth : {false, true}) {
         int sockets[2];
         assert(socketpair(AF_UNIX, SOCK_SEQPACKET, 0, sockets) == 0);

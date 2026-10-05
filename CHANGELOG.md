@@ -8,7 +8,9 @@
 - Replaced sequential sysfs gameplay writes with atomic instant HID reports; restrict direction masks and suppress the center during signals.
 - Send player LED commands only on mask changes, independently of RGB, trigger and rumble updates.
 - Added HUD DOM, USB/Bluetooth report and job-metadata regressions, plus a bounded interactive controller isolation diagnostic.
-- Physical bilateral LED animation remains unresolved, including direct Linux-driver tests with Steam suspended. No stable hardware qualification is claimed.
+- Read the controller hardware revision: standard DualSense generations 4/5 use mirrored player LED pairs. User video and hardware `0x00000514` confirm the attached generation-5 behavior.
+- On mirrored revisions, show individual turns in the HUD only; retain white LEDs for truck lights and hazards. Unknown/Edge revisions are reported as unqualified.
+- Drive HUD/cockpit arrows from logical turn requests and the shared lamp clock, independently of physical LED masks. No stable hardware qualification is claimed.
 
 ## 0.8.0 alpha — HaulSense
 

@@ -17,11 +17,14 @@ assert.equal(el('speed').textContent,'90');
 assert.equal(el('limit').textContent,'—');
 assert.ok(!el('left').classList.contains('on')); // lamp phase, not permanent logical state
 assert.match(el('info').textContent,/Marcia 8 · Autonomia 888 km/);
+vm.runInContext("state.telemetry.left_blinker_light=true;state.telemetry.right_blinker_light=true;state.telemetry.right_blinker=false;render()",context);
+assert.ok(el('left').classList.contains('on'));assert.ok(!el('right').classList.contains('on')); // shared clock must not create a second direction
+
 vm.runInContext("state.telemetry.destination='San José';state.telemetry.nav_distance=null;state.telemetry.nav_time=null;render()",context);
 assert.equal(el('city').textContent,'San José');assert.equal(el('trip').textContent,'—');
 vm.runInContext("state.telemetry.destination='';state.telemetry.nav_distance=0;state.telemetry.nav_time=0;render()",context);
 assert.equal(el('city').textContent,'Nessun percorso');assert.equal(el('trip').textContent,'—');
-vm.runInContext("state.telemetry.nav_distance=160934.4;state.telemetry.nav_time=7260;state.telemetry.fuel_warning=true;state.telemetry.hazards=true;state.telemetry.left_blinker_light=null;document.getElementById('units').value='us';render()",context);
+vm.runInContext("state.telemetry.nav_distance=160934.4;state.telemetry.nav_time=7260;state.telemetry.fuel_warning=true;state.telemetry.hazards=true;state.telemetry.left_blinker_light=null;state.telemetry.right_blinker_light=null;document.getElementById('units').value='us';render()",context);
 assert.equal(el('trip').textContent,'100.0 mi · 2 h 01 min');assert.equal(el('speed').textContent,'56');
 assert.equal(el('warning').hidden,false);assert.ok(el('left').classList.contains('on'));assert.ok(el('right').classList.contains('on'));
 vm.runInContext("state.active=false;state.paused=true;render()",context);

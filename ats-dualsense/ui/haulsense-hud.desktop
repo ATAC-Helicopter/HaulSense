@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=HaulSense HUD
+Comment=Transparent truck telemetry overlay
+Exec=haulsense-hud
+Icon=haulsense
+Categories=Game;Utility;
+Terminal=false

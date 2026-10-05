@@ -30,14 +30,17 @@ jobs:
       - name: Test packed SDK callback alignment
         run: |
           cmake -S . -B build-sanitized -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=undefined -fno-sanitize-recover=all" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=undefined"
-          cmake --build build-sanitized --target effects-tests plugin-tests -j2
+          cmake --build build-sanitized --target effects-tests plugin-tests dualsense-transport-tests -j2
           ctest --test-dir build-sanitized --output-on-failure
+      - name: Check optional HUD and isolation diagnostic syntax
+        run: python3 -m py_compile ats-dualsense/ui/haulsense-hud.py ats-dualsense/scripts/diagnose-player-leds.py
       - name: Test real sockets, lifecycle and settings
         run: python3 tests/integration.py build
       - name: Test dashboard DOM and units
         run: |
           npm install --prefix .test-deps linkedom@0.18.12 --no-audit --no-fund
           NODE_PATH="$PWD/.test-deps/node_modules" node tests/ui.mjs build/ui-state.json
+          NODE_PATH="$PWD/.test-deps/node_modules" node tests/hud.mjs
       - name: Build freestanding Windows x64 plugin
         run: ./ats-dualsense/plugin-win/build-windows-dll.sh
       - name: Check shell scripts and generated artifact imports

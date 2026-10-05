@@ -86,8 +86,13 @@ bool DualSense::apply(uint8_t r,uint8_t g,uint8_t b,uint8_t leds,uint8_t lp,uint
     c.right_mode=rs?TRIGGER_FEEDBACK:TRIGGER_OFF; c.left_mode=ls?TRIGGER_FEEDBACK:TRIGGER_OFF;
     if(rs) encode_feedback(c.right_param,rp,rs);
     if(ls) encode_feedback(c.left_param,lp,ls);
-    if(control_player_leds) c.player_leds=(leds&0x1f);
+    if(control_player_leds) c.player_leds=(leds&0x1f)|0x20; // Apply atomically, without the firmware player-ID fade.
     c.red=r; c.green=g; c.blue=b;
     return send_report(reinterpret_cast<uint8_t*>(&c));
 }
 bool DualSense::neutral(bool control_player_leds){ return apply(0,0,0,0,0,0,0,0,0,0,control_player_leds); }
+
+bool DualSense::player_leds(uint8_t mask){
+    Common c{};c.valid1=F1_PLAYER;c.player_leds=(mask&0x1f)|0x20;
+    return send_report(reinterpret_cast<uint8_t*>(&c));
+}

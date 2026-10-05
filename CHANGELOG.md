@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — compact HUD and controller diagnostics
+
+- Added embedded browser HUD and optional transparent GTK desktop overlay with persistent monitor, position, units, opacity and size preferences.
+- Centered speed, limit and trip information; show GPS distance/ETA without a job and distinguish job destination metadata.
+- Added gear, fuel range, cruise target and contextual warnings; native HTTP waits run outside the GTK main thread.
+- Replaced sequential sysfs gameplay writes with atomic instant HID reports; restrict direction masks and suppress the center during signals.
+- Send player LED commands only on mask changes, independently of RGB, trigger and rumble updates.
+- Added HUD DOM, USB/Bluetooth report and job-metadata regressions, plus a bounded interactive controller isolation diagnostic.
+- Physical bilateral LED animation remains unresolved, including direct Linux-driver tests with Steam suspended. No stable hardware qualification is claimed.
+
 ## 0.8.0 alpha — HaulSense
 
 - Named project, public governance, continuous validation and FG Labs product entry.

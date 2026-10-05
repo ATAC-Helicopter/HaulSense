@@ -43,6 +43,8 @@ with tempfile.TemporaryDirectory(prefix='haulsense-test-') as directory:
     process=subprocess.Popen([str(binary),'--no-controller','--telemetry-port','39065','--dashboard-port','39066','--config',str(config)],stdout=subprocess.DEVNULL)
     try:
         ready(process)
+        code,hud=request(path='/hud');assert code==200 and b'HaulSense HUD' in hud and b'nav_speed_limit' in hud
+        code,dashboard=request(path='/');assert code==200 and b'Compact HUD' in dashboard
         packet=subprocess.check_output([str(build/'telemetry-fixture')]);udp=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
         def send(data):udp.sendto(data,('127.0.0.1',39065));time.sleep(.08)
         send(packet);code,state=request();assert code==200 and state['active'] and state['telemetry']['speed_mps']==18
@@ -68,4 +70,4 @@ with tempfile.TemporaryDirectory(prefix='haulsense-test-') as directory:
         ready(process);time.sleep(.1);state=request()[1];assert state['demo'] and not state['controller'] and state['active']
         (build/'ui-state.json').write_text(json.dumps(state))
     finally:stop(process)
-print('Integration: exact packet size/version, left-only LEDs, pause, timeout, config validation/preservation, CSRF/Host rejection, slow clients, hardware-free demo passed')
+print('Integration: compact HUD, exact packet size/version, left-only LEDs, pause, timeout, config validation/preservation, CSRF/Host rejection, slow clients, hardware-free demo passed')

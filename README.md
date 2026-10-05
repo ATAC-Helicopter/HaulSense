@@ -9,16 +9,16 @@
 ## What it does
 
 - **A cockpit that earns its space:** speed, displayed gear, RPM, cruise, route/ETA, fuel consumption/range, brake air, coolant/oil, battery, inputs, wheel contact and component condition. Metric and US units.
-- **Directional white LEDs:** left pair and right pair remain separate; each sweeps inner → inner+outer → off. Hazards sweep both; the middle LED follows exterior lights. Hardware calibration can swap the sides.
+- **Directional white LED masks:** software requests separate left/right inner → inner+outer → off sweeps, with the center off during signals. The attached controller still illuminates both sides during physical tests, including direct Linux-driver tests with Steam suspended. This behavior is unresolved; side calibration alone is not a qualified fix.
 - **Adaptive L2 brakes**, a subtle R2 full-throttle cue and restrained heavy-brake texture. Setting trigger strength to zero disables all resistance, including low-air cues.
 - **Event-driven immersion:** gear shifts, road impacts, engine starts, retarder, engine brake, parking brake, trailer coupling, lift axle and SDK gameplay events. Delivery/fine acknowledgements have distinct colours. Optional gentle reverse and wiper rhythms.
 - **Calm lightbar:** blue driving/lights, white reverse, amber hazards, breathing gold beacon. Engine warnings are gated by engine state; critical wear starts at 85%.
 - **Fine tuning:** Calm, Balanced and Immersive presets, eight sliders, optional cues, master pause and persistent settings. No continuous RPM/throttle vibration.
 - **SDK inspector:** subscribed values and missing-channel status, without pretending unavailable values are zero. Primary-trailer telemetry is included; extended trailer trains and spatial placement are not exposed yet.
-- **Local and lightweight:** C++20 daemon, no runtime Node/Electron/Python, no cloud, no third-party scripts/fonts, no account. Dashboard is embedded in the binary, opens in your browser, and stops fetching when hidden. Its 24-second history is bounded and never recorded to disk.
+- **Local and lightweight:** C++20 daemon, no runtime Node/Electron in the daemon, no cloud, no third-party scripts/fonts, no account. Dashboard is embedded in the binary, opens in your browser, and stops fetching when hidden. Its 24-second history is bounded and never recorded to disk.
 
 ```text
-ATS.exe → SCS SDK 1.14 DLL → localhost UDP :39055 → HaulSense → DualSense HID + exact sysfs LEDs
+ATS.exe → SCS SDK 1.14 DLL → localhost UDP :39055 → HaulSense → DualSense atomic HID output
                                                    └→ localhost HTTP :39056 → browser cockpit
 ```
 
@@ -42,6 +42,12 @@ The installer installs the DLL, user service, app launcher and udev permissions.
 
 Open **HaulSense** from the application menu, or visit **http://127.0.0.1:39056**. `haulsense.service` runs independently of the dashboard. The old `ats-dualsense` executable becomes a compatibility alias; the old service is disabled to avoid two bridges fighting over the controller.
 
+### Compact HUD
+
+Open **HaulSense HUD** from the application menu for a separate transparent window, or use **Compact HUD** in the dashboard for a small browser page at **http://127.0.0.1:39056/hud**. Both reuse the existing local telemetry service and clear values when ATS is paused or disconnected. The HUD shows speed, navigation speed limit, destination, remaining distance/time and left/right signals. The SDK provides a job destination city. Manually selected GPS routes expose distance/time without a city name; the HUD labels them “Percorso GPS”.
+
+The desktop HUD is optional and requires Python 3, PyGObject and GTK 3 (on Ubuntu/Zorin: `python3-gi` and `gir1.2-gtk-3.0`); it does not add a framework to the native service. Drag it to position it. Right-click to choose a monitor, corner, metric/US units, opacity or size; settings are saved under `~/.config/haulsense/hud.json`. You can also run `haulsense-hud --list-monitors` and `haulsense-hud --monitor 1` from a terminal. On this GNOME Wayland desktop it runs through Xwayland so the window manager can keep it above ordinary windows. Exclusive fullscreen games can still cover it; move it to the other monitor or use borderless/windowed mode in that case. The browser page is useful on another monitor, but browser window transparency and always-on-top are browser-dependent.
+
 ## Build / test
 
 ```bash
@@ -57,6 +63,7 @@ Optional DOM smoke test (test dependency only):
 ```bash
 npm install --prefix .test-deps linkedom --no-audit --no-fund
 NODE_PATH="$PWD/.test-deps/node_modules" node tests/ui.mjs build/ui-state.json
+NODE_PATH="$PWD/.test-deps/node_modules" node tests/hud.mjs
 ```
 
 **Hardware-free preview:** stop the installed service, run `./build/ats-dualsense/daemon/haulsense --mock --config /tmp/haulsense-demo.conf`, and open the dashboard. Demo state is clearly labelled and never opens the controller. `--mock-hardware` explicitly opts into controller output.
@@ -72,7 +79,9 @@ haulsense --led-test
 systemctl --user start haulsense.service
 ```
 
-Stop the service before launching another daemon instance or an LED test. LED discovery is associated with the selected HID device, including when several controllers are connected. Live player LED control deliberately uses sysfs: raw HID player patterns can differ by firmware. The diagnostic lights each physical LED separately.
+Stop the service before launching another daemon instance or an LED test. LED discovery is associated with the selected HID device, including when several controllers are connected. Live player LED control sends the complete five-bit mask in one HID report with the instant-update flag. Physical testing still showed unwanted bilateral animation even with HaulSense stopped and Steam suspended. The cause is not established; see the qualification record. Sysfs discovery is diagnostic only; legacy `sysfs_player_leds` settings are ignored. The diagnostic lights each physical LED separately through the same instant HID path.
+
+If you use Steam Input to drive, leave it enabled for ATS. In Steam's **Settings → Controller → your DualSense → Calibration & Advanced Settings → LED Settings**, set **Player Slot LED** to **Off** to disable Steam’s own player assignment. This setting was already off during the unresolved physical tests and is not a confirmed repair. This is a controller-wide Steam preference. HaulSense's directional LEDs are still controlled by its own service; the combination needs a visual check on your controller.
 
 Settings remain in `~/.config/ats-dualsense/config.conf` for migration compatibility, or `$XDG_CONFIG_HOME/ats-dualsense/config.conf` when set. `--config PATH` overrides the location. The dashboard saves only known settings and preserves other user keys.
 
@@ -87,3 +96,15 @@ Pause events immediately send a neutral state. Missing/invalid telemetry times o
 ```
 
 Keeps user settings and the udev rule. Third-party SDK notices are in `ats-dualsense/third_party/scs-sdk/LICENSE`. HaulSense is an independent FG Labs project, unaffiliated with Sony or SCS Software.
+
+### HUD improvements
+
+The native HUD and `/hud` now center their labels, speed, limit and route data. GPS distance/ETA remain visible without a job; the name of a city is only available for a job destination. The HUD also displays gear, fuel range, cruise target and contextual warnings, with metric/US conversion and stale-data clearing. Native HTTP requests run in a background thread so dragging and menus stay responsive. Existing HUD position, monitor, units, opacity and scale preferences are preserved.
+
+Directional player LED masks sweep from inner to outer on the selected side, with the center off during signals; hazards sweep both sides. Player LED commands are sent only on mask changes, independently of rumble, triggers and RGB updates. Physical directional behavior remains unresolved and is tracked in the qualification record. See [SDK capabilities and further options](docs/SDK-CAPABILITIES.md).
+
+HUD regression: `NODE_PATH=/path/to/linkedom/node_modules node tests/hud.mjs`. Screenshots used for local visual review are in `build/hud-review/` (generated, not release assets).
+
+![Rendered native HUD with a GPS telemetry fixture](docs/media/hud-gps.png)
+
+Local GTK rendering with a telemetry fixture, not an in-game capture. The web HUD demo is [shown here](docs/media/hud-web-demo.png). Neither image qualifies physical controller behavior.

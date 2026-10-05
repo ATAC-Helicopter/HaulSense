@@ -16,6 +16,7 @@ public:
                uint8_t left_position, uint8_t left_strength,
                uint8_t right_position, uint8_t right_strength,
                uint8_t motor_right, uint8_t motor_left, bool control_player_leds = true);
+    bool player_leds(uint8_t mask);
     bool neutral(bool control_player_leds = true);
 
 private:

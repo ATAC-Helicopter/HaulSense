@@ -1,110 +1,79 @@
 # HaulSense
 
-**Feel the long haul.** A small native Linux companion for American Truck Simulator under Proton, with a live truck dashboard and telemetry-driven DualSense effects.
+**Feel the long haul.** A local Linux desktop companion for American Truck Simulator under Proton: a 3D road navigator, job journal and telemetry-driven DualSense feedback.
 
-[Project page](https://fglabs.dev/projects/haulsense) · [Releases](https://github.com/FGLabs-dev/HaulSense/releases) · [Report a bug](https://github.com/FGLabs-dev/HaulSense/issues)
+**1.0.0-rc.1 — release candidate.** Local automated and rendered checks are documented in [qualification](docs/QUALIFICATION.md). Live v7 job/traffic-light operation and a long-haul driving session still need qualification before stable 1.0. USB audio haptics and original game scenery meshes are not implemented.
 
-> Public alpha: automatic tests cover the SDK adapter, wire protocol, effect engine, local API and UI DOM. Full in-game driving qualification and visual browser review of this new dashboard are still pending. Feedback uses compatible rumble and adaptive triggers; USB audio haptics are not implemented.
+[Project](https://fglabs.dev/projects/haulsense) · [Releases](https://github.com/FGLabs-dev/HaulSense/releases) · [Issues](https://github.com/FGLabs-dev/HaulSense/issues) · [Security reporting](https://github.com/FGLabs-dev/HaulSense/security/advisories/new)
 
-## What it does
+![Standalone cockpit — DEMO telemetry and schematic road scene](docs/media/standalone-desktop-demo.png)
 
-- **A cockpit that earns its space:** speed, displayed gear, RPM, cruise, route/ETA, fuel consumption/range, brake air, coolant/oil, battery, inputs, wheel contact and component condition. Metric and US units.
-- **Revision-aware white LEDs:** independent revisions retain left/right sweeps. Standard DualSense generations 4 and 5 have mirrored player LED pairs; their turn signals appear in the HUD only, while white LEDs remain available for truck lights and hazards. Unrecognized revisions and DualSense Edge still require physical qualification.
-- **Adaptive L2 brakes**, a subtle R2 full-throttle cue and restrained heavy-brake texture. Setting trigger strength to zero disables all resistance, including low-air cues.
-- **Event-driven immersion:** gear shifts, road impacts, engine starts, retarder, engine brake, parking brake, trailer coupling, lift axle and SDK gameplay events. Delivery/fine acknowledgements have distinct colours. Optional gentle reverse and wiper rhythms.
-- **Calm lightbar:** blue driving/lights, white reverse, amber hazards, breathing gold beacon. Engine warnings are gated by engine state; critical wear starts at 85%.
-- **Fine tuning:** Calm, Balanced and Immersive presets, eight sliders, optional cues, master pause and persistent settings. No continuous RPM/throttle vibration.
-- **SDK inspector:** subscribed values and missing-channel status, without pretending unavailable values are zero. Primary-trailer telemetry is included; extended trailer trains and spatial placement are not exposed yet.
-- **Local and lightweight:** C++20 daemon, no runtime Node/Electron in the daemon, no cloud, no third-party scripts/fonts, no account. Dashboard is embedded in the binary, opens in your browser, and stops fetching when hidden. Its 24-second history is bounded and never recorded to disk.
+![Job report — synthetic demonstration, not a driven delivery](docs/media/standalone-job-report-demo.png)
 
-```text
-ATS.exe → SCS SDK 1.14 DLL → localhost UDP :39055 → HaulSense → DualSense atomic HID output
-                                                   └→ localhost HTTP :39056 → browser cockpit
-```
+## The app
 
-## Install
+- **Standalone cockpit:** an isolated Electron window, native menu, persistent units/window size and updates that continue outside focus. The C++ service keeps the 50 Hz controller path separate from rendering. A browser interface remains available at `http://127.0.0.1:39056`.
+- **Local navigator:** WebGL 3D, 2D fallback, follow/north-up, zoom, fullscreen and optional scenery layers. Extracted roads include elevation, prefab intersections, sign text, dividers and POIs. Buildings/props use measured bounds, not original meshes/textures. Maps restore automatically after their first import. The desktop can also load an installed local map automatically.
+- **Future route:** an independent directed road/prefab router with city/job destination selection, plus the optional game GPS feed from ETS2LA. The source is always labelled; the independent path can differ from game GPS preferences.
+- **Actual semaphore states:** the optional ETS2LA 1.61 provider supplies red/amber/green/off/flashing states, position and remaining time. Missing/stale feeds clear the colours. The nearest signal is not assumed to control your approach. This uses live provider data, not a guessed timer.
+- **Job log:** the service records the observed travelled route, distance, real moving/stopped time, speed, fuel, cargo condition, fines, tolls and transport payments. V7 adds the game's delivery revenue, XP, job distance/time and parking/loading flags. Completed/cancelled jobs are retained locally with JSON export; active recording survives a clean service restart. Coverage gaps and partial observations are explicit.
+- **Cockpit and compact HUD:** speed, gear, RPM, cruise, navigation/ETA, fuel, brake air, temperatures, inputs, wheel contact and wear. Metric/US units, measured warnings and missing-channel fallbacks. The optional GTK HUD remains available.
+- **DualSense immersion:** adaptive L2 braking, restrained R2/road texture and short event cues. Mirrored standard generations 4/5 show individual turns in the HUD/cockpit; white LEDs handle lights/hazards. Independent revisions retain directional masks. Unknown revisions/Edge and broader USB/Bluetooth firmware coverage remain qualification work.
+- **Local by design:** no accounts, cloud reporting, advertising, analytics or remote UI scripts/fonts. The standalone renderer has no Node access. Maps, preferences and job reports remain on your device.
 
-Restart ATS after installation to load the updated plugin. Linux x86-64, DualSense/DualSense Edge and the kernel `hid-playstation` driver are required. USB and Bluetooth are supported by the report encoder; broad firmware/transport qualification remains an alpha gate.
+## Install from source
 
-Source prerequisites: GCC 11+ or Clang with C++20 support, CMake 3.20+, and Clang + LLD for the Windows plugin. The plugin is freestanding: no Windows SDK or MinGW is needed. Release bundles include the DLL and an optional Linux executable, so Clang/LLD are not needed to install a bundle.
+Linux x86-64, GCC 11+/Clang with C++20, CMake 3.20+, Node.js 24/npm for desktop packaging, Clang/LLD for the freestanding Windows DLL. The desktop bundle contains Electron; users of a prepared bundle need no Node installation. USB/Bluetooth output uses the kernel `hid-playstation` driver; udev setup can require sudo.
 
 ```bash
 ./ats-dualsense/scripts/install-all.sh
+./ats-dualsense/scripts/install-desktop.sh
+haulsense-app
 ```
 
-Game discovery checks common Steam library locations. Override it with:
+Set `ATS_DIR='/path/to/American Truck Simulator'` for a custom Steam library. Use `SKIP_UDEV=1` if permissions already exist. Installers preserve customized config and existing HUD settings. Restart ATS after replacing game plugins; an already running DLL keeps its old protocol until then.
+
+The app reuses `haulsense.service` when present, otherwise starts its bundled native daemon. Closing the app leaves an existing user service running; a daemon started by the app is stopped cleanly. `haulsense-app --demo` uses isolated hardware-free demo ports and never writes to the controller.
+
+### Maps and live signal/GPS provider
+
+Use **Load road map** once. IndexedDB restores that map on the next launch/reload; **Forget map** removes the saved copy. The standalone also checks `${XDG_DATA_HOME:-~/.local/share}/haulsense/maps/ats.json` on its first launch. Game-derived map files are not shipped in public releases. See [export, limits and map setup](docs/WEB-NAVIGATOR.md).
+
+For **ATS/ETS2 1.61 only**, install the separate, checksum-pinned ETS2LA provider, then restart the game:
 
 ```bash
-ATS_DIR='/path/to/American Truck Simulator' ./ats-dualsense/scripts/install-all.sh
+GAME_VERSION=1.61 ATS_DIR='/path/to/American Truck Simulator' ./ats-dualsense/scripts/install-signal-provider.sh
 ```
 
-The installer installs the DLL, user service, app launcher and udev permissions. It preserves customized config and backs it up before migration. Udev installation is the only step requiring sudo. If suitable permissions already exist, use `SKIP_UDEV=1`.
-
-Open **HaulSense** from the application menu, or visit **http://127.0.0.1:39056**. `haulsense.service` runs independently of the dashboard. The old `ats-dualsense` executable becomes a compatibility alias; the old service is disabled to avoid two bridges fighting over the controller.
+Under Wine/Proton, the provider creates `/dev/shm/ETS2LASemaphore` and `/dev/shm/ETS2LARoute`. HaulSense reads them without writing controls or injecting into game memory. Do not use this pinned provider for another game version. [Provider ABI, compatibility and freshness](docs/SIGNAL-PROVIDER.md) explains the limitations and live qualification gap.
 
 ### Compact HUD
 
-Open **HaulSense HUD** from the application menu for a separate transparent window, or use **Compact HUD** in the dashboard for a small browser page at **http://127.0.0.1:39056/hud**. Both reuse the existing local telemetry service and clear values when ATS is paused or disconnected. The HUD shows speed, navigation speed limit, destination, remaining distance/time and left/right signals. The SDK provides a job destination city. Manually selected GPS routes expose distance/time without a city name; the HUD labels them “Percorso GPS”.
+Use **Compact HUD** in the app, `http://127.0.0.1:39056/hud`, or the optional **HaulSense HUD** desktop launcher. GTK needs Python 3, PyGObject and GTK 3. Drag the window; right-click for monitor, units, opacity and size. Existing preferences remain in `~/.config/haulsense/hud.json`. A free-driving GPS route without job city metadata is labelled “Percorso GPS”.
 
-The desktop HUD is optional and requires Python 3, PyGObject and GTK 3 (on Ubuntu/Zorin: `python3-gi` and `gir1.2-gtk-3.0`); it does not add a framework to the native service. Drag it to position it. Right-click to choose a monitor, corner, metric/US units, opacity or size; settings are saved under `~/.config/haulsense/hud.json`. You can also run `haulsense-hud --list-monitors` and `haulsense-hud --monitor 1` from a terminal. On this GNOME Wayland desktop it runs through Xwayland so the window manager can keep it above ordinary windows. Exclusive fullscreen games can still cover it; move it to the other monitor or use borderless/windowed mode in that case. The browser page is useful on another monitor, but browser window transparency and always-on-top are browser-dependent.
-
-## Build / test
+## Build and verify
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j2
 ctest --test-dir build --output-on-failure
 python3 tests/integration.py build
+python3 tests/map_export.py
+node tests/routing.cjs
 ./ats-dualsense/plugin-win/build-windows-dll.sh
+npm ci --prefix ats-dualsense/desktop --ignore-scripts
+node ats-dualsense/desktop/node_modules/electron/install.js
+npm test --prefix ats-dualsense/desktop
+npm run --prefix ats-dualsense/desktop package
+python3 scripts/check-release.py
 ```
 
-Optional DOM smoke test (test dependency only):
+DOM/browser qualification commands and fixture limitations are in [qualification](docs/QUALIFICATION.md). CI builds native/Windows/standalone artifacts, exercises migration/HTTP/recording/provider regressions and audits dependencies. CodeQL and dependency review run separately; local green checks do not imply remote CI approval.
 
-```bash
-npm install --prefix .test-deps linkedom --no-audit --no-fund
-NODE_PATH="$PWD/.test-deps/node_modules" node tests/ui.mjs build/ui-state.json
-NODE_PATH="$PWD/.test-deps/node_modules" node tests/hud.mjs
-```
+## Data and security
 
-**Hardware-free preview:** stop the installed service, run `./build/ats-dualsense/daemon/haulsense --mock --config /tmp/haulsense-demo.conf`, and open the dashboard. Demo state is clearly labelled and never opens the controller. `--mock-hardware` explicitly opts into controller output.
+Configuration: `~/.config/ats-dualsense/config.conf`. Desktop preferences/map cache: `${XDG_CONFIG_HOME:-~/.config}/haulsense/`. Native job journal: `${XDG_DATA_HOME:-~/.local/share}/haulsense/jobs/` (private permissions, 50 reports maximum, up to 10,000 route samples per report with downsampling). Browser caches live in that browser's profile. Reports record your driving history; exported JSON is an explicit user action.
 
-## Control and diagnostics
+The API binds to loopback, rejects foreign Hosts/origins and ambiguous security headers, and serves a strict script CSP. The desktop uses a private local protocol, renderer sandbox/context isolation, no Node integration, denied permissions and restricted navigation/downloads. Packages disable unnecessary Electron fuses. See [security policy](SECURITY.md), [architecture](docs/ARCHITECTURE.md) and [release process](docs/RELEASING.md).
 
-```bash
-haulsense --diagnostics
-haulsense --telemetry-debug
-journalctl --user -u haulsense.service -f
-systemctl --user stop haulsense.service
-haulsense --led-test
-systemctl --user start haulsense.service
-```
-
-Stop the service before launching another daemon instance or an LED test. LED discovery is associated with the selected HID device, including when several controllers are connected. Live player LED control sends the complete five-bit mask in one HID report with the instant-update flag. Video review of the attached generation-5 controller confirms mirrored inner and outer pairs. Its read-only hardware report is `0x00000514`. Generation 4 mirroring is also documented by other controller implementations; see the qualification record. Sysfs discovery is diagnostic only; legacy `sysfs_player_leds` settings are ignored. The diagnostic requests each LED bit separately; mirrored hardware physically lights the corresponding pair.
-
-If you use Steam Input to drive, leave it enabled for ATS. In Steam's **Settings → Controller → your DualSense → Calibration & Advanced Settings → LED Settings**, set **Player Slot LED** to **Off** to disable Steam’s own player assignment. This setting was already off during the physical tests; it cannot separate hardware-mirrored pairs. This is a controller-wide Steam preference. HaulSense detects known mirrored revisions and uses HUD-only turn signals on them.
-
-Settings remain in `~/.config/ats-dualsense/config.conf` for migration compatibility, or `$XDG_CONFIG_HOME/ats-dualsense/config.conf` when set. `--config PATH` overrides the location. The dashboard saves only known settings and preserves other user keys.
-
-Pause events immediately send a neutral state. Missing/invalid telemetry times out after 500 ms. Legacy-plugin pauses use this timeout; the new plugin sends pause immediately. Frames must match an exact supported packet version and size; the legacy v4/175-byte adapter keeps an already running game compatible during migration, with inferred availability clearly labelled. New v5 frames carry explicit channel availability; bad frames are counted, not applied. The socket is drained to the newest valid frame, with bounded per-loop work. Controller output is capped at 50 Hz; changed LEDs/HID output are sent only when necessary.
-
-[Architecture and security boundaries](docs/ARCHITECTURE.md) · [SDK coverage](docs/TELEMETRY.md) · [Qualification](docs/QUALIFICATION.md) · [Roadmap](docs/ROADMAP.md)
-
-## Remove
-
-```bash
-./ats-dualsense/scripts/uninstall.sh
-```
-
-Keeps user settings and the udev rule. Third-party SDK notices are in `ats-dualsense/third_party/scs-sdk/LICENSE`. HaulSense is an independent FG Labs project, unaffiliated with Sony or SCS Software.
-
-### HUD improvements
-
-The native HUD and `/hud` now center their labels, speed, limit and route data. GPS distance/ETA remain visible without a job; the name of a city is only available for a job destination. The HUD also displays gear, fuel range, cruise target and contextual warnings, with metric/US conversion and stale-data clearing. Native HTTP requests run in a background thread so dragging and menus stay responsive. Existing HUD position, monitor, units, opacity and scale preferences are preserved.
-
-On independent revisions, directional player LED masks sweep from inner to outer on the selected side, with the center off during signals; hazards sweep both sides. On known mirrored revisions, individual turns use HUD arrows and leave the center truck-light indicator available. Player LED commands are sent only on mask changes, independently of rumble, triggers and RGB updates. Known mirrored revisions cannot show independent physical directions; unknown revisions still need visual qualification. See [SDK capabilities and further options](docs/SDK-CAPABILITIES.md).
-
-HUD regression: `NODE_PATH=/path/to/linkedom/node_modules node tests/hud.mjs`. Screenshots used for local visual review are in `build/hud-review/` (generated, not release assets).
-
-![Rendered native HUD with a GPS telemetry fixture](docs/media/hud-gps.png)
-
-Local GTK rendering with a telemetry fixture, not an in-game capture. The web HUD demo is [shown here](docs/media/hud-web-demo.png). Neither image qualifies physical controller behavior.
+HaulSense is MIT licensed. SCS SDK, Three.js, nlohmann/json and Electron notices are retained. ATS/ETS2 trademarks and game data belong to their owners; this is an independent companion, not an official SCS product. No proprietary map archives, meshes or textures are included.

@@ -13,7 +13,7 @@ jobs:
   build-test:
     name: Build and test
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -30,17 +30,32 @@ jobs:
       - name: Test packed SDK callback alignment
         run: |
           cmake -S . -B build-sanitized -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=undefined -fno-sanitize-recover=all" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=undefined"
-          cmake --build build-sanitized --target effects-tests plugin-tests dualsense-transport-tests -j2
+          cmake --build build-sanitized --target effects-tests plugin-tests dualsense-transport-tests route-reader-tests semaphore-reader-tests job-journal-tests -j2
           ctest --test-dir build-sanitized --output-on-failure
+      - name: Validate desktop dependencies and release identity
+        run: |
+          npm ci --prefix ats-dualsense/desktop --ignore-scripts --no-audit --no-fund
+          npm audit --prefix ats-dualsense/desktop --audit-level=moderate
+          npm test --prefix ats-dualsense/desktop
+          python3 scripts/check-release.py
       - name: Check optional HUD and isolation diagnostic syntax
-        run: python3 -m py_compile ats-dualsense/ui/haulsense-hud.py ats-dualsense/scripts/diagnose-player-leds.py
+        run: python3 -m py_compile ats-dualsense/ui/haulsense-hud.py ats-dualsense/scripts/diagnose-player-leds.py ats-dualsense/scripts/export-road-map.py ats-dualsense/scripts/scene_map.py
       - name: Test real sockets, lifecycle and settings
-        run: python3 tests/integration.py build
+        run: |
+          python3 tests/integration.py build
+          python3 tests/map_export.py
       - name: Test dashboard DOM and units
         run: |
           npm install --prefix .test-deps linkedom@0.18.12 --no-audit --no-fund
           NODE_PATH="$PWD/.test-deps/node_modules" node tests/ui.mjs build/ui-state.json
           NODE_PATH="$PWD/.test-deps/node_modules" node tests/hud.mjs
+          NODE_PATH="$PWD/.test-deps/node_modules" node tests/navigation.mjs
+          node tests/routing.cjs
+          NODE_PATH="$PWD/.test-deps/node_modules" node tests/jobs.mjs
+      - name: Package standalone desktop
+        run: |
+          node ats-dualsense/desktop/node_modules/electron/install.js
+          npm run --prefix ats-dualsense/desktop package
       - name: Build freestanding Windows x64 plugin
         run: ./ats-dualsense/plugin-win/build-windows-dll.sh
       - name: Check shell scripts and generated artifact imports
@@ -50,6 +65,6 @@ jobs:
           ./ats-dualsense/scripts/package-release.sh
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: haulsense-linux-x86_64-alpha
+          name: haulsense-linux-x86_64-candidate
           path: build/release/*
           retention-days: 14

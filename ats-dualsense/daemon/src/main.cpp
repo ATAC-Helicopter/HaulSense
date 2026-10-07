@@ -3,6 +3,10 @@
 #include "legacy_protocol.hpp"
 #include "player_leds.hpp"
 #include "dashboard.hpp"
+#include "route_reader.hpp"
+#include "semaphore_reader.hpp"
+#include "job_journal.hpp"
+#include "version.hpp"
 #include <filesystem>
 #include <iomanip>
 #include <limits>
@@ -27,7 +31,7 @@
 using Clock = std::chrono::steady_clock;
 
 struct Config {
-    // v0.8.0 stays quiet while cruising, but allows stronger event and brake feedback.
+    // Controller feedback stays quiet while cruising, but allows stronger event and brake feedback.
     float rumble_strength = 0.22f;
     float road_strength = 0.28f;
     float trigger_strength = 0.66f;
@@ -348,7 +352,9 @@ static void print_diagnostics(DualSense& ds, PlayerLeds& leds){
 }
 
 static bool valid_packet(const AtsTelemetryPacket& t){
-    if(t.magic!=0x41545344 || t.version!=5 || t.size!=sizeof(t) || t.paused>1 || t.wheel_count>64)return false;
+    if(t.magic!=0x41545344 || t.version!=7 || t.size!=sizeof(t) || t.paused>1 || t.wheel_count>64)return false;
+    if(t.placement_available>1||t.game>2||t.job_active>1||t.event_autopark>1||t.event_autoload>1||(t.event_attributes&~127u)||!std::isfinite(t.event_distance)||!std::isfinite(t.event_cargo_damage)||t.event_cargo_damage<0||t.event_cargo_damage>1||t.event_distance<0||t.event_distance>1e7)return false;
+    for(double v:{t.world_x,t.world_y,t.world_z,(double)t.heading,(double)t.pitch,(double)t.roll})if(!std::isfinite(v)||std::fabs(v)>=1e8)return false;
     auto finite=[](float v){return std::isfinite(v)&&std::fabs(v)<1e8f;};
 #define TELE_FLOAT(n,c) if(!finite(t.n))return false;
 #define TELE_BOOL(n,c) if(t.n>1)return false;
@@ -383,10 +389,10 @@ static std::string config_json(const Config& c){
 #undef CF
     s<<"\"effects_enabled\":"<<c.effects_enabled<<"}";return s.str();
 }
-static std::string snapshot(const AtsTelemetryPacket&t,bool active,bool demo,const DualSense&ds,const PlayerLeds&,const Fx& fx,const Config&cfg,long age,uint64_t rejected,unsigned protocol=5){
+static std::string snapshot(const AtsTelemetryPacket&t,bool active,bool demo,const DualSense&ds,const PlayerLeds&,const Fx& fx,const Config&cfg,long age,uint64_t rejected,unsigned protocol=7){
     std::ostringstream s;s<<std::boolalpha<<std::setprecision(6);
-    s<<"{\"name\":\"HaulSense\",\"version\":\"0.8.0\",\"active\":"<<active<<",\"demo\":"<<demo<<",\"paused\":"<<(bool)t.paused
-      <<",\"source_protocol\":"<<protocol<<",\"availability_known\":"<<(protocol==5)<<",\"controller\":"<<ds.connected()<<",\"transport\":"<<json_text(ds.connected()?(ds.bluetooth()?"Bluetooth":"USB"):"Disconnected")
+    s<<"{\"name\":\"HaulSense\",\"version\":\"" HAULSENSE_VERSION "\",\"active\":"<<active<<",\"demo\":"<<demo<<",\"paused\":"<<(bool)t.paused
+      <<",\"source_protocol\":"<<protocol<<",\"availability_known\":"<<(protocol>=5)<<",\"controller\":"<<ds.connected()<<",\"transport\":"<<json_text(ds.connected()?(ds.bluetooth()?"Bluetooth":"USB"):"Disconnected")
       <<",\"leds_available\":"<<ds.connected()<<",\"hardware_version\":"<<ds.hardware_version()
       <<",\"player_led_layout\":"<<json_text(ds.player_led_layout()==DualSense::PlayerLedLayout::Mirrored?"mirrored":ds.player_led_layout()==DualSense::PlayerLedLayout::Independent?"independent":"unknown")
       <<",\"age_ms\":"<<std::max(0l,age)<<",\"rejected\":"<<rejected<<",\"sequence\":"<<t.sequence
@@ -403,6 +409,12 @@ static std::string snapshot(const AtsTelemetryPacket&t,bool active,bool demo,con
 #undef TELE_U32
 #undef TELE_S32
 #undef TELE_VEC
+    s<<"\"game\":"<<json_text(t.game==1?"ats":t.game==2?"ets2":"unknown")<<",\"world_position\":";
+    if(t.placement_available)s<<"["<<std::setprecision(12)<<t.world_x<<","<<t.world_y<<","<<t.world_z<<"]";else s<<"null";
+    s<<",\"heading\":";if(t.placement_available)s<<t.heading;else s<<"null";
+    s<<",\"pitch\":";if(t.placement_available)s<<t.pitch;else s<<"null";
+    s<<",\"job_active\":";if(protocol>=7)s<<(t.job_active?"true":"false");else s<<"null";s<<",\"job_sequence\":"<<t.job_sequence;
+    s<<",\"roll\":";if(t.placement_available)s<<t.roll;else s<<"null";s<<std::setprecision(6)<<",";
     s<<"\"rpm_limit\":"<<t.rpm_limit<<",\"fuel_capacity\":"<<t.fuel_capacity<<",\"adblue_capacity\":"<<t.adblue_capacity<<",\"max_wear\":"<<t.max_wear
      <<",\"last_event\":"<<json_text(t.last_event)<<",\"event_sequence\":"<<t.event_sequence<<",\"cargo_mass\":"<<t.cargo_mass<<",\"truck_name\":"<<json_text(t.truck_name)<<",\"truck_brand\":"<<json_text(t.truck_brand)<<",\"cargo\":"<<json_text(t.cargo)
      <<",\"origin\":"<<json_text(t.origin)<<",\"destination\":"<<json_text(t.destination)<<",\"wheels\":[";
@@ -440,6 +452,7 @@ static bool save_settings(const std::string&body,const std::string&path,Config&c
 static void demo_packet(AtsTelemetryPacket&t,uint64_t seq){
     float x=.5f+.25f*std::sin(seq*.014f);t={};t.sequence=seq;
     t.available[0]=~0ull;t.available[1]=(1ull<<(CHANNEL_COUNT-64))-1;
+    t.placement_available=1;t.game=1;t.world_x=300*std::sin(seq*.001f);t.world_z=-static_cast<double>(seq)*.3;t.heading=-std::atan2(.3*std::cos(seq*.001f),.3)/(2*3.14159265);t.world_y=35;t.pitch=.002f;t.roll=.001f;
     t.electric_enabled=t.engine_enabled=1;t.rpm=1100+600*x;t.rpm_limit=2500;t.throttle=t.input_throttle=x;
     t.brake=t.input_brake=seq%500>420?.65f:0;t.speed_mps=27*x;t.fuel=255;t.fuel_capacity=400;
     t.fuel_consumption=.36f;t.fuel_range=708;t.nav_distance=183400;t.nav_time=8900;t.nav_speed_limit=25;
@@ -452,7 +465,7 @@ static void demo_packet(AtsTelemetryPacket&t,uint64_t seq){
     std::strcpy(t.truck_brand,"Kenworth");std::strcpy(t.truck_name,"W900");std::strcpy(t.cargo,"Industrial equipment");std::strcpy(t.origin,"Flagstaff");std::strcpy(t.destination,"Albuquerque");
 }
 int main(int argc,char**argv){
-    bool mock=false,test_leds=false,diagnostics=false,telemetry_debug=false,no_controller=false,no_ui=false;std::string config_path;
+    bool mock=false,test_leds=false,diagnostics=false,telemetry_debug=false,no_controller=false,no_ui=false;std::string config_path,route_path="/dev/shm/ETS2LARoute",semaphore_path="/dev/shm/ETS2LASemaphore",data_directory;
     unsigned short telemetry_port=39055,dashboard_port=39056;
     for(int i=1;i<argc;++i){
         std::string a=argv[i];
@@ -466,9 +479,12 @@ int main(int argc,char**argv){
         else if((a=="--telemetry-port"||a=="--dashboard-port")&&i+1<argc){
             try{size_t end=0;std::string value=argv[++i];int port=std::stoi(value,&end);if(end!=value.size()||port<1024||port>65535)throw std::invalid_argument("port");if(a=="--telemetry-port")telemetry_port=port;else dashboard_port=port;}catch(...){std::cerr<<"Invalid port\n";return 2;}
         }
+        else if(a=="--route-file"&&i+1<argc)route_path=argv[++i];
+        else if(a=="--semaphore-file"&&i+1<argc)semaphore_path=argv[++i];
+        else if(a=="--data-dir"&&i+1<argc)data_directory=argv[++i];
         else if(a=="--config"&&i+1<argc)config_path=argv[++i];
-        else if(a=="--version"){std::cout<<"HaulSense 0.8.0\n";return 0;}
-        else if(a=="--help"){std::cout<<"HaulSense 0.8.0\nDashboard: http://127.0.0.1:39056\n  --mock (UI demo, no controller writes)\n  --mock-hardware (demo effects on controller)\n  --no-controller\n  --no-ui\n  --led-test\n  --diagnostics\n  --telemetry-debug\n  --version\n  --config PATH\n";return 0;}
+        else if(a=="--version"){std::cout<<"HaulSense " HAULSENSE_VERSION "\n";return 0;}
+        else if(a=="--help"){std::cout<<"HaulSense " HAULSENSE_VERSION "\nDashboard: http://127.0.0.1:39056\n  --mock (UI demo, no controller writes)\n  --mock-hardware (demo effects on controller)\n  --no-controller\n  --no-ui\n  --led-test\n  --diagnostics\n  --telemetry-debug\n  --version\n  --config PATH\n  --data-dir PATH (private job journal)\n  --route-file PATH\n  --semaphore-file PATH\n  --telemetry-port PORT\n  --dashboard-port PORT\n";return 0;}
         else {std::cerr<<"Unknown option: "<<a<<"\n";return 2;}
     }
     if(config_path.empty()){const char*home=std::getenv("HOME");const char*xdg=std::getenv("XDG_CONFIG_HOME");if(xdg&&*xdg)config_path=std::string(xdg)+"/ats-dualsense/config.conf";else if(home)config_path=std::string(home)+"/.config/ats-dualsense/config.conf";}
@@ -481,11 +497,15 @@ int main(int argc,char**argv){
     int s=socket(AF_INET,SOCK_DGRAM|SOCK_NONBLOCK|SOCK_CLOEXEC,0);if(s<0){perror("socket");return 3;}
     sockaddr_in a{};a.sin_family=AF_INET;a.sin_port=htons(telemetry_port);a.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
     if(bind(s,(sockaddr*)&a,sizeof(a))<0){perror("UDP bind (is another bridge running?)");close(s);return 4;}
+    RouteReader route_reader(route_path);
+    SemaphoreReader semaphore_reader(semaphore_path);
+    if(data_directory.empty()){const char*home=std::getenv("HOME");const char*xdg=std::getenv("XDG_DATA_HOME");data_directory=xdg&&*xdg?std::string(xdg)+"/haulsense/jobs":home?std::string(home)+"/.local/share/haulsense/jobs":"/tmp/haulsense-jobs-"+std::to_string(geteuid());}
+    JobJournal journal(data_directory);
     Dashboard dashboard;
     if(!no_ui&&!dashboard.open(dashboard_port))std::cerr<<"Dashboard port busy; feedback remains active.\n";
-    std::cout<<"HaulSense 0.8.0 | "<<(mock?"DEMO":"SCS telemetry")<<" | http://127.0.0.1:"<<dashboard_port<<"\n";
+    std::cout<<"HaulSense " HAULSENSE_VERSION " | "<<(mock?"DEMO":"SCS telemetry")<<" | http://127.0.0.1:"<<dashboard_port<<"\n";
     if(ds.connected())std::cout<<"DualSense: "<<ds.path()<<" ("<<(ds.bluetooth()?"Bluetooth":"USB")<<")\n";
-    AtsTelemetryPacket t{};uint64_t seq=0,rejected=0;unsigned source_protocol=5;auto last=Clock::now();auto last_probe=Clock::now()-std::chrono::seconds(5);
+    AtsTelemetryPacket t{};uint64_t seq=0,rejected=0;unsigned source_protocol=7;auto last=Clock::now();auto last_probe=Clock::now()-std::chrono::seconds(5);
     auto last_health=Clock::now();
     auto next_tick=Clock::now();bool have=false,ann=false,timed=false;
     Fx prev{255,255,255,255,255,255,255,255,255,255},current{};Runtime runtime{};uint32_t last_debug_bits=~0u;
@@ -501,6 +521,10 @@ int main(int argc,char**argv){
         }
         bool active=have&&!t.paused&&(mock||now-last<std::chrono::milliseconds(500));
         dashboard.tick([&](const std::string&route,const std::string&body,int&status){
+            if(route=="route")return route_reader.snapshot(active&&!mock);
+            if(route=="signals")return semaphore_reader.snapshot(active&&!mock);
+            if(route=="jobs")return journal.list();
+            if(route.starts_with("job/")){auto report=journal.report(route.substr(4));if(report=="null")status=404;return report;}
             if(route=="config"){
                 if(!save_settings(body,config_path,cfg)){status=400;return std::string("{\"error\":\"Invalid settings or config could not be saved\"}");}
                 return config_json(cfg);
@@ -515,13 +539,23 @@ int main(int argc,char**argv){
             for(int i=0;i<64;++i){AtsTelemetryPacket in{};auto n=recv(s,&in,sizeof(in),MSG_TRUNC);
                 if(n<0)break;
                 if(mock)continue;
-                if(n==(ssize_t)sizeof(in)&&valid_packet(in)){t=in;have=true;last=Clock::now();source_protocol=5;}
+                bool accepted=false;
+                if(n==(ssize_t)sizeof(in)&&valid_packet(in)){t=in;accepted=true;have=true;last=Clock::now();source_protocol=7;}
+                else if(n==(ssize_t)V6_PACKET_SIZE&&in.version==6&&in.size==V6_PACKET_SIZE){
+                    in.version=7;in.size=sizeof(in);
+                    if(valid_packet(in)){t=in;accepted=true;have=true;last=Clock::now();source_protocol=6;}else ++rejected;
+                }
+                else if(n==(ssize_t)V5_PACKET_SIZE&&in.version==5&&in.size==V5_PACKET_SIZE){
+                    in.version=7;in.size=sizeof(in);
+                    if(valid_packet(in)){t=in;accepted=true;have=true;last=Clock::now();source_protocol=5;}else ++rejected;
+                }
                 else if(n==(ssize_t)sizeof(LegacyTelemetryPacket)){
                     LegacyTelemetryPacket old{};std::memcpy(static_cast<void*>(&old),&in,sizeof(old));
                     auto converted=convert_legacy(old);
-                    if(old.magic==0x41545344&&old.version==4&&old.size==sizeof(old)&&valid_packet(converted)){t=converted;have=true;last=Clock::now();source_protocol=4;}
+                    if(old.magic==0x41545344&&old.version==4&&old.size==sizeof(old)&&valid_packet(converted)){t=converted;accepted=true;have=true;last=Clock::now();source_protocol=4;}
                     else ++rejected;
                 }else ++rejected;
+                if(accepted)journal.observe(t,source_protocol);
             }
         }
         now=Clock::now();if(now<next_tick)continue;next_tick=now+std::chrono::milliseconds(20);

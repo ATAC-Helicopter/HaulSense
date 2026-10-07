@@ -1,6 +1,21 @@
 # Changelog
 
-## Unreleased — compact HUD and controller diagnostics
+## 1.0.0-rc.1 — standalone navigator and job journal
+
+- Added a sandboxed Electron desktop with persistent local origin/map cache, native menu/export, bounded background updates and revised route-first cockpit.
+- Added native per-frame job recording, resumable checkpoints, travelled route/report history and official v7 delivery/cost metadata. V4/v5/v6 prefixes remain compatible.
+- Added actual semaphore-state reader and optional checksum-pinned ETS2LA 1.61 provider installer; missing/stale input clears phases.
+- Removed executable inline scripts, hardened HTTP headers/Origin/CSP and desktop permissions/navigation/fuses. Added weekly dependency tracking and CodeQL/dependency review.
+- Candidate status keeps live game/provider/long-haul and broader device qualification explicit.
+
+### Included web scene, compact HUD and controller diagnostics
+
+- Added v6 double-precision world placement and game identity while preserving exact v5/v4 compatibility.
+- Added a local WebGL schematic navigator with extracted road elevation, prefab surfaces/curves, signs, semaphore positions, dividers, POIs and instanced measured object bounds; retained 2D/perspective fallback and fullscreen/mobile controls.
+- Added offline directed A* city/job routing through prefab connections and an optional read-only ETS2LA UID-route reader with freshness, map validation and explicit source labels.
+- Added the detailed scene converter, bounded spatial indexing/batched rendering and measured journey/fuel/cargo advice. Original game meshes/textures, terrain and live traffic remain absent.
+- Added route-reader, routing, rich scene/export and browser lifecycle regressions. Extracted ATS rendering is locally verified with simulated placement; live alignment/provider operation remains unqualified.
+
 
 - Added embedded browser HUD and optional transparent GTK desktop overlay with persistent monitor, position, units, opacity and size preferences.
 - Centered speed, limit and trip information; show GPS distance/ETA without a job and distinguish job destination metadata.

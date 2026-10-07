@@ -2,11 +2,11 @@
 
 Source: [official SCS Telemetry SDK 1.14](https://modding.scssoft.com/wiki/Documentation/Engine/SDK/Telemetry), vendored under `ats-dualsense/third_party/scs-sdk` with its license. The registry below is the adapter contract, not a claim that every mod/truck/game version supplies every channel.
 
-78 scalar/vector subscriptions, plus per-wheel suspension/contact/angular velocity (up to 16), truck fuel/AdBlue capacities/RPM limit/name/brand and job cargo/mass/origin/destination. SDK frame end, pause, start, configuration and gameplay events are subscribed. All scalar/vector registrations request unavailable-value callbacks and report null to the inspector when missing.
+78 scalar/vector subscriptions plus the v6 world-placement subscription, plus per-wheel suspension/contact/angular velocity (up to 16), truck fuel/AdBlue capacities/RPM limit/name/brand and job cargo/mass/origin/destination. SDK frame end, pause, start, configuration and gameplay events are subscribed. All scalar/vector registrations request unavailable-value callbacks and report null to the inspector when missing.
 
-Native units: speed and speed limit m/s; navigation distance metres; navigation time seconds; fuel/AdBlue litres; fuel consumption L/km; fuel range and odometer km; pressure psi; temperatures Celsius; battery volts; wear [0,1]; wheel deflection metres; angular quantities radians-based. Gear/retarder/aux-light states retain SDK integer values. Gameplay events are short acknowledgements, not an automated driving system.
+Native units: speed and speed limit m/s; navigation distance metres; navigation time seconds; fuel/AdBlue litres; fuel consumption L/km; fuel range and odometer km; pressure psi; temperatures Celsius; battery volts; wear [0,1]; wheel deflection metres; angular velocity/acceleration quantities radians-based; placement heading/pitch/roll are turn fractions. Gear/retarder/aux-light states retain SDK integer values. Gameplay events are short acknowledgements, not an automated driving system.
 
-The cockpit does not display all subscriptions in dedicated gauges; SDK inspector exposes the full stored packet. Primary trailer only. Spatial world placement, detailed shifter selectors, secondary trailer trains and audio haptics are deferred. Wiper state does not expose exact blade phase; the optional rhythm is synthetic. The SDK does not provide an ABS-engagement channel used here.
+The cockpit does not display all subscriptions in dedicated gauges; SDK inspector exposes the full stored packet. Primary trailer only. World placement feeds the web navigator with v6. Detailed shifter selectors, secondary trailer trains and audio haptics are deferred. Wiper state does not expose exact blade phase; the optional rhythm is synthetic. The SDK does not provide an ABS-engagement channel used here.
 
 | Field | SDK channel | Wire type |
 |---|---|---|
@@ -88,3 +88,10 @@ The cockpit does not display all subscriptions in dedicated gauges; SDK inspecto
 | `cabin_angvel` | `truck.cabin.velocity.angular` | vec |
 | `cabin_angacc` | `truck.cabin.acceleration.angular` | vec |
 | `trailer_accel` | `trailer.acceleration.linear` | vec |
+
+| `world_position`, `heading`, `pitch`, `roll` | `truck.world.placement` | v6: 3 doubles + 3 floats, explicit availability |
+| `game` | SDK initialization `game_id` | v6: byte enum (ATS / ETS2 / unknown) |
+
+## V7 job extension
+
+V7 is 898 bytes: the unchanged 863-byte v6 prefix plus 35 bytes. Fields: job-active byte; uint32 job-configuration sequence; uint32 gameplay attribute mask; int64 monetary amount; int32 XP; float32 job distance/cargo damage; uint32 game delivery minutes; autopark/autoload bytes. Unknown event fields have clear mask bits and never become measured zeros. Gameplay callbacks send immediately so the native journal can consume each event independently from dashboard polling. V4/v5/v6 remain exact-size compatible with the extension absent.

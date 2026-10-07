@@ -1,10 +1,18 @@
 #include "dashboard.hpp"
 #include "dashboard_asset.hpp"
 #include "hud_asset.hpp"
+#include "navigation_asset.hpp"
+#include "scene_asset.hpp"
+#include "routing_asset.hpp"
+#include "dashboard_js_asset.hpp"
+#include "hud_js_asset.hpp"
+#include "persistence_asset.hpp"
+#include "jobs_asset.hpp"
 #include <algorithm>
 #include <cerrno>
 #include <cctype>
 #include <charconv>
+#include <map>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -38,32 +46,52 @@ void Dashboard::tick(const Handler& handler){
             auto first=c.input.find("\r\n");std::string request=c.input.substr(0,first);
             std::string headers=c.input.substr(first+2,end-first-2);
             std::transform(headers.begin(),headers.end(),headers.begin(),[](unsigned char v){return std::tolower(v);});
-            // Reject DNS rebinding and cross-origin writes. No CORS access is granted.
-            bool host=false;
-            std::string header_lines="\r\n"+headers+"\r\n";
-            for(const auto&name:{"127.0.0.1","localhost"})if(header_lines.find(std::string("\r\nhost: ")+name+":"+std::to_string(port_)+"\r\n")!=std::string::npos)host=true;
-            int status=200;std::string body,type="application/json";
-            bool post=request=="POST /api/config HTTP/1.1";
-            size_t length=0;
+            // Parse each field once; duplicate routing/security headers are ambiguous.
+            std::map<std::string,std::string> fields;bool malformed=false;size_t offset=0;
+            while(offset<headers.size()){
+                auto finish=headers.find("\r\n",offset);if(finish==std::string::npos)finish=headers.size();
+                auto line=headers.substr(offset,finish-offset);auto colon=line.find(':');
+                if(colon==std::string::npos||colon==0){malformed=true;break;}
+                auto name=line.substr(0,colon),value=line.substr(colon+1);
+                while(!value.empty()&&(value.front()==' '||value.front()=='\t'))value.erase(0,1);
+                while(!value.empty()&&(value.back()==' '||value.back()=='\t'))value.pop_back();
+                if(fields.contains(name)){malformed=true;break;}fields[name]=value;offset=finish+2;
+            }
+            bool host=fields["host"]=="127.0.0.1:"+std::to_string(port_)||fields["host"]=="localhost:"+std::to_string(port_);
+            int status=malformed?400:200;std::string body,type="application/json";
+            bool post=request=="POST /api/config HTTP/1.1";size_t length=0;
+            if(fields.contains("transfer-encoding"))status=400;
             if(post){
-                auto at=headers.find("content-length: ");
-                if(at==std::string::npos){status=400;}
-                else {at+=16;auto finish=headers.find("\r\n",at);auto val=headers.substr(at,finish-at);auto r=std::from_chars(val.data(),val.data()+val.size(),length);if(r.ec!=std::errc{}||r.ptr!=val.data()+val.size()||length>2048)status=400;}
+                const auto& val=fields["content-length"];auto r=std::from_chars(val.data(),val.data()+val.size(),length);
+                if(r.ec!=std::errc{}||r.ptr!=val.data()+val.size()||length>2048)status=400;
                 if(status==200&&c.input.size()<end+4+length)continue;
-                if(headers.find("x-haulsense: 1")==std::string::npos)status=403;
+                if(fields["x-haulsense"]!="1")status=403;
+                if(fields.contains("origin")&&fields["origin"]!="http://127.0.0.1:"+std::to_string(port_)&&fields["origin"]!="http://localhost:"+std::to_string(port_))status=403;
+                if(fields.contains("sec-fetch-site")&&fields["sec-fetch-site"]!="same-origin"&&fields["sec-fetch-site"]!="none")status=403;
             }
             if(!host)status=403;
             if(status==200){
                 if(request=="GET / HTTP/1.1"){body=dashboard_html;type="text/html; charset=utf-8";}
+                else if(request=="GET /dashboard.js HTTP/1.1"){body=dashboard_js;type="application/javascript; charset=utf-8";}
+                else if(request=="GET /hud.js HTTP/1.1"){body=hud_js;type="application/javascript; charset=utf-8";}
+                else if(request=="GET /persistence.js HTTP/1.1"){body=persistence_js;type="application/javascript; charset=utf-8";}
+                else if(request=="GET /jobs.js HTTP/1.1"){body=jobs_js;type="application/javascript; charset=utf-8";}
+                else if(request=="GET /navigation.js HTTP/1.1"){body=navigation_js;type="application/javascript; charset=utf-8";}
+                else if(request=="GET /scene.js HTTP/1.1"){body=scene_js;type="application/javascript; charset=utf-8";}
+                else if(request=="GET /routing-worker.js HTTP/1.1"){body=routing_js;type="application/javascript; charset=utf-8";}
+                else if(request=="GET /api/signals HTTP/1.1")body=handler("signals","",status);
+                else if(request=="GET /api/jobs HTTP/1.1")body=handler("jobs","",status);
+                else if(request.starts_with("GET /api/jobs/")&&request.ends_with(" HTTP/1.1"))body=handler("job/"+request.substr(14,request.size()-23),"",status);
+                else if(request=="GET /api/route HTTP/1.1")body=handler("route","",status);
                 else if(request=="GET /hud HTTP/1.1"){body=hud_html;type="text/html; charset=utf-8";}
                 else if(request=="GET /api/state HTTP/1.1")body=handler("state","",status);
                 else if(post)body=handler("config",c.input.substr(end+4,length),status);
                 else status=404;
             }
             if(status!=200&&body.empty())body="{\"error\":\"Request rejected\"}";
-            c.output="HTTP/1.1 "+std::to_string(status)+" "+(status==200?"OK":"Error")+"\r\nContent-Type: "+type+"\r\nContent-Length: "+std::to_string(body.size())+"\r\nConnection: close\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nContent-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'\r\n\r\n"+body;
+            c.output="HTTP/1.1 "+std::to_string(status)+" "+(status==200?"OK":"Error")+"\r\nContent-Type: "+type+"\r\nContent-Length: "+std::to_string(body.size())+"\r\nConnection: close\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nContent-Security-Policy: default-src 'self'; object-src 'none'; worker-src 'self'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'\r\nPermissions-Policy: camera=(), microphone=(), geolocation=(), payment=()\r\nReferrer-Policy: no-referrer\r\n\r\n"+body;
         }
-        auto count=send(c.fd,c.output.data()+c.sent,c.output.size()-c.sent,MSG_NOSIGNAL);
+        auto count=send(c.fd,c.output.data()+c.sent,std::min<size_t>(c.output.size()-c.sent,65536),MSG_NOSIGNAL);
         if(count<0){if(errno!=EAGAIN&&errno!=EWOULDBLOCK)close(c);continue;}
         c.sent+=count;if(c.sent==c.output.size())close(c);
     }

@@ -1,0 +1,2 @@
+#pragma once
+static constexpr const char @ASSET_NAME@[] = R"HSJS(@ASSET_JS@)HSJS";

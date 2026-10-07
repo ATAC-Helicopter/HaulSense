@@ -4,6 +4,9 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 VERSION="${RELEASE_VERSION:-$(tr -d '\r\n' < "$ROOT/VERSION")}"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]] || { echo "Invalid release version" >&2; exit 2; }
 STAGE="$ROOT/build/release/HaulSense-$VERSION"
+# STAGE is a version-validated, generated path below build/release.
+# A repeated package must not nest a second standalone bundle.
+rm -rf -- "$STAGE"
 mkdir -p "$STAGE/ats-dualsense/bin"
 for file in README.md LICENSE CHANGELOG.md CONTRIBUTING.md SECURITY.md CMakeLists.txt VERSION; do install -m644 "$ROOT/$file" "$STAGE/$file"; done
 cp -r "$ROOT/docs" "$ROOT/tests" "$STAGE/"

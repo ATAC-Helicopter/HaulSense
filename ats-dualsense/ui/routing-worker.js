@@ -2,17 +2,18 @@
 'use strict';
 function createRoadRouter(data) {
  const nodes=data.graph.nodes, base=data.graph.edges;
- const count=nodes.length, edges=base.map(e=>[e[0],e[1],e[2],-1,-1]);
+ const count=nodes.length;if(!count||count>1000000||base.length>2000000)throw Error('Invalid graph size.');
+ const edges=base.map(e=>[Number(e[0]),Number(e[1]),Number(e[2]),-1,-1]);
  const tx=(p,instance)=>{const [_,x,z,y,a]=instance,c=Math.cos(a),s=Math.sin(a);return [x+p[0]*c-p[1]*s,z+p[0]*s+p[1]*c,y+(p[2]||0)];};
  for(let i=0;i<(data.prefabs||[]).length;i++){
   const instance=data.prefabs[i],template=data.templates[instance[0]],mapping=instance[5];
   for(let j=0;j<template.links.length;j++){const link=template.links[j],a=mapping[link[0]],b=mapping[link[1]];if(a>=0&&b>=0)edges.push([a,b,Math.max(link[2],Math.hypot(nodes[a][0]-nodes[b][0],nodes[a][1]-nodes[b][1])),i,j]);}
  }
  const incoming=new Uint32Array(count),starts=new Uint32Array(count+1);
- for(const e of edges){starts[e[0]+1]++;incoming[e[1]]++;}
+ for(const e of edges){const from=Number(e[0]),to=Number(e[1]);if(!Number.isSafeInteger(from)||!Number.isSafeInteger(to)||from<0||to<0||from>=count||to>=count||!Number.isFinite(e[2])||e[2]<0)throw Error('Invalid graph edge.');starts[from+1]++;incoming[to]++;}
  for(let i=1;i<starts.length;i++)starts[i]+=starts[i-1];
  const destinations=new Uint32Array(edges.length),costs=new Float32Array(edges.length),refs=new Uint32Array(edges.length),cursor=starts.slice();
- edges.forEach((e,i)=>{const j=cursor[e[0]]++;destinations[j]=e[1];costs[j]=e[2];refs[j]=i;});
+ edges.forEach((e,i)=>{const from=Number(e[0]),j=Number(cursor[from]++);destinations[j]=e[1];costs[j]=e[2];refs[j]=i;});
  const uidIndex=new Map(nodes.map((n,i)=>[n[3],i]));
  const buckets=new Map(),step=500;
  nodes.forEach((n,i)=>{const key=Math.floor(n[0]/step)+','+Math.floor(n[1]/step);if(!buckets.has(key))buckets.set(key,[]);buckets.get(key).push(i);});
@@ -37,4 +38,4 @@ function createRoadRouter(data) {
  return {route,resolve,nearest,count,edgeCount:edges.length};
 }
 if(typeof module!=='undefined')module.exports={createRoadRouter};
-else {let router=null;self.onmessage=e=>{const m=e.data;try{if(m.type==='load'){router=createRoadRouter(m.map);self.postMessage({type:'ready',nodes:router.count,edges:router.edgeCount});}else if(router)self.postMessage({type:'result',id:m.id,...(m.type==='gps'?router.resolve(m.uids):router.route(m.start,m.end))});}catch(error){self.postMessage({type:'error',id:m.id,error:error.message});}};}
+else {let router=null;self.onmessage=e=>{if(e.origin!==''&&e.origin!==self.location.origin)return;const m=e.data;if(!m||typeof m!=='object'||!['load','gps','route'].includes(m.type))return;try{if(m.type==='load'){router=createRoadRouter(m.map);self.postMessage({type:'ready',nodes:router.count,edges:router.edgeCount});}else if(router)self.postMessage({type:'result',id:m.id,...(m.type==='gps'?router.resolve(m.uids):router.route(m.start,m.end))});}catch(error){self.postMessage({type:'error',id:m.id,error:error.message});}};}

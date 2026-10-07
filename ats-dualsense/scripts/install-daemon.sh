@@ -24,7 +24,12 @@ else
   fi
   echo "Preserved your customized settings: $CONFIG_DIR/config.conf"
 fi
-install -Dm644 "$ROOT/ui/haulsense.desktop" "$HOME/.local/share/applications/haulsense.desktop"
+mkdir -p "$HOME/.local/share/applications"
+if command -v haulsense-app >/dev/null 2>&1; then
+  install -Dm644 "$ROOT/ui/haulsense.desktop" "$HOME/.local/share/applications/haulsense.desktop"
+else
+  sed 's|Exec=haulsense-app|Exec=xdg-open http://127.0.0.1:39056|' "$ROOT/ui/haulsense.desktop" > "$HOME/.local/share/applications/haulsense.desktop"
+fi
 install -Dm755 "$ROOT/ui/haulsense-hud.py" "$HOME/.local/bin/haulsense-hud"
 install -Dm644 "$ROOT/ui/haulsense-hud.desktop" "$HOME/.local/share/applications/haulsense-hud.desktop"
 install -Dm644 "$ROOT/ui/haulsense.svg" "$HOME/.local/share/icons/hicolor/scalable/apps/haulsense.svg"

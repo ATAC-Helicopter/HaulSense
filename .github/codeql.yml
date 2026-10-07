@@ -1,0 +1,8 @@
+name: HaulSense maintained source
+paths-ignore:
+  - ats-dualsense/third_party
+  - ats-dualsense/ui/scene.bundle.js
+  - build
+  - build-sanitized
+queries:
+  - uses: security-extended

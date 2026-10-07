@@ -35,6 +35,13 @@ static void SCSAPIFUNC on_value(const char*,unsigned,const scs_value_t*v,void*ct
     case SCS_VALUE_TYPE_fvector: {WireVector value{v->value_fvector.x,v->value_fvector.y,v->value_fvector.z};memcpy(b.target,&value,sizeof(value));break;}
     }
 }
+static void SCSAPIFUNC on_placement(const char*,unsigned,const scs_value_t*v,void*){
+    g.placement_available=v&&v->type==SCS_VALUE_TYPE_dplacement;
+    if(!g.placement_available){g.world_x=g.world_y=g.world_z=0;g.heading=g.pitch=g.roll=0;return;}
+    const auto& p=v->value_dplacement;
+    g.world_x=p.position.x;g.world_y=p.position.y;g.world_z=p.position.z;
+    g.heading=p.orientation.heading;g.pitch=p.orientation.pitch;g.roll=p.orientation.roll;
+}
 static void SCSAPIFUNC on_wheel(const char*name,unsigned index,const scs_value_t*v,void*){
     if(index>=16)return;
     unsigned char bit=same(name,"truck.wheel.on_ground")?2:same(name,"truck.wheel.angular_velocity")?4:1;
@@ -75,13 +82,24 @@ static void SCSAPIFUNC on_event(unsigned e,const void*info,void*){
     if(e==SCS_TELEMETRY_EVENT_started){paused=false;send_packet(true);return;}
     if(e==SCS_TELEMETRY_EVENT_gameplay&&info){
         auto&event=*(const scs_telemetry_gameplay_event_t*)info;
-        copy_text(g.last_event,sizeof(g.last_event),event.id);++g.event_sequence;return;
+        copy_text(g.last_event,sizeof(g.last_event),event.id);++g.event_sequence;
+        g.event_attributes=0;g.event_money=0;g.event_xp=0;g.event_distance=g.event_cargo_damage=0;g.event_game_minutes=0;g.event_autopark=g.event_autoload=0;
+        if(event.attributes)for(auto*a=event.attributes;a->name;++a){const auto&v=a->value;
+            if(v.type==SCS_VALUE_TYPE_s64&&(same(a->name,"revenue")||same(a->name,"fine.amount")||same(a->name,"pay.amount")||same(a->name,"cancel.penalty"))){g.event_attributes|=EVENT_MONEY;memcpy(&g.event_money,&v.value_s64.value,8);}
+            if(v.type==SCS_VALUE_TYPE_s32&&same(a->name,"earned.xp")){g.event_attributes|=EVENT_XP;memcpy(&g.event_xp,&v.value_s32.value,4);}
+            if(v.type==SCS_VALUE_TYPE_float&&same(a->name,"distance.km")){g.event_attributes|=EVENT_DISTANCE;memcpy(&g.event_distance,&v.value_float.value,4);}
+            if(v.type==SCS_VALUE_TYPE_float&&same(a->name,"cargo.damage")){g.event_attributes|=EVENT_CARGO_DAMAGE;memcpy(&g.event_cargo_damage,&v.value_float.value,4);}
+            if(v.type==SCS_VALUE_TYPE_u32&&same(a->name,"delivery.time")){g.event_attributes|=EVENT_GAME_MINUTES;memcpy(&g.event_game_minutes,&v.value_u32.value,4);}
+            if(v.type==SCS_VALUE_TYPE_bool&&same(a->name,"auto.park.used")){g.event_attributes|=EVENT_AUTOPARK;g.event_autopark=v.value_bool.value?1:0;}
+            if(v.type==SCS_VALUE_TYPE_bool&&same(a->name,"auto.load.used")){g.event_attributes|=EVENT_AUTOLOAD;g.event_autoload=v.value_bool.value?1:0;}
+        }
+        send_packet(true);return;
     }
     if(e!=SCS_TELEMETRY_EVENT_configuration||!info)return;
     auto&cfg=*(const scs_telemetry_configuration_t*)info;if(!cfg.attributes)return;
     bool truck=same(cfg.id,"truck"),job=same(cfg.id,"job");
     if(truck){g.truck_name[0]=g.truck_brand[0]=0;g.wheel_count=0;g.rpm_limit=2500;g.fuel_capacity=1;g.adblue_capacity=0;for(unsigned i=0;i<16;++i)g.wheel_available[i]=0;}
-    if(job){g.cargo[0]=g.origin[0]=g.destination[0]=0;g.cargo_mass=0;}
+    if(job){g.cargo[0]=g.origin[0]=g.destination[0]=0;g.cargo_mass=0;g.job_active=0;++g.job_sequence;}
     for(auto*a=cfg.attributes;a->name;++a){
         auto&v=a->value;
         if(truck&&v.type==SCS_VALUE_TYPE_float){
@@ -99,6 +117,7 @@ static void SCSAPIFUNC on_event(unsigned e,const void*info,void*){
             if(job&&same(a->name,"destination.city"))copy_text(g.destination,sizeof(g.destination),s);
         }
     }
+    if(job){g.job_active=g.cargo[0]||g.origin[0]||g.destination[0];send_packet(true);}
 }
 extern "C" SCSAPI_RESULT scs_telemetry_init(unsigned version,const scs_telemetry_init_params_t*params){
     if(version!=SCS_TELEMETRY_VERSION_1_01&&version!=SCS_TELEMETRY_VERSION_1_00)return SCS_RESULT_unsupported;
@@ -122,6 +141,8 @@ extern "C" SCSAPI_RESULT scs_telemetry_init(unsigned version,const scs_telemetry
 #undef TELE_S32
 #undef TELE_VEC
 #undef REGISTER
+    g.game=same(p.common.game_id,"ats")?1:same(p.common.game_id,"eut2")?2:0;
+    if(register_channel("truck.world.placement",SCS_U32_NIL,SCS_VALUE_TYPE_dplacement,SCS_TELEMETRY_CHANNEL_FLAG_no_value,on_placement,nullptr)!=SCS_RESULT_ok&&game_log)game_log(SCS_LOG_TYPE_warning,"HaulSense: world placement unavailable");
     if(game_log)game_log(SCS_LOG_TYPE_message,"HaulSense 0.8.0: SDK 1.14 telemetry ready (50 Hz ceiling)");return SCS_RESULT_ok;
 }
 extern "C" SCSAPI_VOID scs_telemetry_shutdown(){paused=true;send_packet(true);if(sock!=~0ull)closesocket(sock);sock=~0ull;WSACleanup();game_log=nullptr;}

@@ -41,7 +41,14 @@ void encode_feedback(uint8_t *out10,uint8_t position,uint8_t strength){
 }
 
 DualSense::~DualSense(){ close_device(); }
-void DualSense::close_device(){ if(fd_>=0)::close(fd_); fd_=-1; path_.clear(); }
+void DualSense::close_device(){ if(fd_>=0)::close(fd_); fd_=-1; path_.clear(); hardware_version_=0; edge_=false; }
+DualSense::PlayerLedLayout DualSense::classify_player_leds(uint32_t hardware,bool edge){
+    if(edge) return PlayerLedLayout::Unknown; // Edge revisions need their own qualification.
+    const auto generation=(hardware>>8)&0xffff;
+    if(generation==4 || generation==5) return PlayerLedLayout::Mirrored;
+    if(generation==2 || generation==3) return PlayerLedLayout::Independent;
+    return PlayerLedLayout::Unknown;
+}
 bool DualSense::alive() const {hidraw_devinfo info{};return fd_>=0&&ioctl(fd_,HIDIOCGRAWINFO,&info)==0;}
 bool DualSense::open_first(){
     close_device();
@@ -63,7 +70,20 @@ bool DualSense::open_first(){
         hidraw_devinfo info{}; if(ioctl(fd,HIDIOCGRAWINFO,&info)<0){::close(fd);continue;}
         if(info.vendor!=SONY||(info.product!=DUALSENSE&&info.product!=DUALSENSE_EDGE)){::close(fd);continue;}
         bluetooth_=info.bustype==BUS_BLUETOOTH;
-        fd_=fd; path_=path.string(); return true;
+        fd_=fd; path_=path.string(); edge_=info.product==DUALSENSE_EDGE;
+        // Read-only firmware feature report, same hardware-info offset as hid-playstation.
+        std::array<uint8_t,64> firmware{};firmware[0]=0x20;
+        if(ioctl(fd_,HIDIOCGFEATURE(firmware.size()),firmware.data())==64 && firmware[0]==0x20){
+            bool valid=true;
+            if(bluetooth_){
+                uint8_t seed=0xA3;uint32_t crc=crc32_update(0,&seed,1);
+                crc=crc32_update(crc,firmware.data(),60);
+                uint32_t received=0;for(int i=0;i<4;++i)received|=uint32_t(firmware[60+i])<<(8*i);
+                valid=crc==received;
+            }
+            if(valid)for(int i=0;i<4;++i)hardware_version_|=uint32_t(firmware[24+i])<<(8*i);
+        }
+        return true;
     }
     return false;
 }

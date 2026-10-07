@@ -1,0 +1,2 @@
+#pragma once
+#define HAULSENSE_VERSION "@HAULSENSE_VERSION@"

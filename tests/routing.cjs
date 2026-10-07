@@ -1,0 +1,22 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {createRoadRouter}=require('../ats-dualsense/ui/routing-worker.js');
+const graph={nodes:[[0,0,0,'ffffffffffffffff'],[100,0,0,'2'],[200,0,2,'3'],[300,0,2,'4'],[3000,3000,0,'5']],edges:[[0,1,105,[[0,0,0],[50,10,0],[100,0,0]]],[2,3,100]]};
+const templates=[{links:[[0,1,110,[0]]],curves:[[[0,0,0],[50,20,1],[100,0,2]]]}];
+const router=createRoadRouter({graph,templates,prefabs:[[0,100,0,0,0,[1,2]]]});
+const route=router.route([0,0],[300,0]);assert.equal(route.source,'haulsense');assert.equal(route.mapDistance,315);assert(route.points.some(p=>p[0]===50&&p[1]===10));assert(route.points.some(p=>p[0]===150&&p[1]===20));
+assert(router.route([300,0],[0,0]).error);assert(router.route([0,0],[3000,3000]).error);
+assert.deepEqual(router.resolve(['ffffffffffffffff','2','3','4']).points,route.points);
+assert(router.resolve(['ffffffffffffffff','4']).error);assert(router.resolve(['ffffffffffffffff','bad']).error);
+console.log('Routing: directed roads, curved geometry, prefab transforms, disconnected roads and exact UID resolution passed.');
+
+assert.throws(()=>createRoadRouter({graph:{nodes:[[0,0,0,'a']],edges:[['__proto__',0,1]]},prefabs:[]}),/Invalid graph edge/);
+assert.throws(()=>createRoadRouter({graph:{nodes:[[0,0,0,'a']],edges:[[0,2,1]]},prefabs:[]}),/Invalid graph edge/);
+const vm=require('node:vm'),fs=require('node:fs'),messages=[];
+const self={location:{origin:'haulsense://app'},postMessage:value=>messages.push(value)};
+vm.runInNewContext(fs.readFileSync(require.resolve('../ats-dualsense/ui/routing-worker.js'),'utf8'),{self});
+const load={type:'load',map:{graph,templates,prefabs:[[0,100,0,0,0,[1,2]]]}};
+self.onmessage({origin:'https://untrusted.example',data:load});assert.equal(messages.length,0);
+self.onmessage({origin:'',data:load});assert.equal(messages[0].type,'ready');
+self.onmessage({origin:'haulsense://app',data:{type:'route',id:1,start:[0,0],end:[300,0]}});assert.equal(messages[1].type,'result');
+console.log('Worker rejects foreign origins and malformed edge indexes; dedicated-worker messages still route.');

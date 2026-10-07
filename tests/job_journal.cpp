@@ -14,8 +14,13 @@ int main(){char path[]="/tmp/haulsense-jobs-XXXXXX";assert(mkdtemp(path));AtsTel
  auto list=delivered(journal);id=list["reports"][0]["id"];auto report=Json::parse(journal.report(id));assert(report["official"]["revenue"]==12345&&report["official"]["earned_xp"]==42);assert(report["fuel_used_l"]==2&&report["distance_km"]==2);assert(report["route"].size()==3&&report["fines"].size()==1);assert(report["outcome"]=="delivered");++t.sequence;journal.observe(t,7);std::this_thread::sleep_for(50ms);assert(Json::parse(journal.list())["reports"].size()==1);t.job_active=0;t.cargo[0]=0;++t.sequence;journal.observe(t,7);}
  {JobJournal journal(path);auto list=delivered(journal);assert(list["reports"].size()==1);assert(Json::parse(journal.report(id))["cargo"]=="Cargo <safe>");assert(journal.report("../config")=="null");}
  // An unfinished job survives a daemon restart with a visible gap.
- t.job_active=1;t.sequence=1;t.event_sequence=0;t.last_event[0]=0;t.cargo[0]='X';t.cargo[1]=0;
- {JobJournal journal(path);journal.observe(t,7);std::this_thread::sleep_for(100ms);}
- {JobJournal journal(path);std::this_thread::sleep_for(100ms);t.sequence=2;t.event_sequence=1;std::strcpy(t.last_event,"job.cancelled");journal.observe(t,7);for(int i=0;i<100&&Json::parse(journal.list())["reports"].size()<2;i++)std::this_thread::sleep_for(20ms);auto list=Json::parse(journal.list());assert(list["reports"].size()==2);auto r=Json::parse(journal.report(list["reports"][0]["id"]));assert(r["outcome"]=="cancelled"&&r["gaps"]>=1);}
+ t.job_active=1;t.sequence=1;t.event_sequence=20;std::strcpy(t.last_event,"job.delivered");t.cargo[0]='X';t.cargo[1]=0;
+ {JobJournal journal(path);journal.observe(t,7);std::this_thread::sleep_for(100ms);assert(Json::parse(journal.list())["reports"].size()==1);assert(!Json::parse(journal.list())["recording"].is_null());}
+ {JobJournal journal(path);std::this_thread::sleep_for(100ms);t.sequence=2;t.job_active=0;t.cargo[0]=0;journal.observe(t,7);std::this_thread::sleep_for(100ms);assert(Json::parse(journal.list())["reports"].size()==1);t.sequence=3;t.event_sequence=1;std::strcpy(t.last_event,"job.cancelled");journal.observe(t,7);for(int i=0;i<100&&Json::parse(journal.list())["reports"].size()<2;i++)std::this_thread::sleep_for(20ms);auto list=Json::parse(journal.list());assert(list["reports"].size()==2);auto r=Json::parse(journal.report(list["reports"][0]["id"]));assert(r["outcome"]=="cancelled"&&r["gaps"]>=1);}
+ // Cleared metadata without a terminal event eventually becomes interrupted.
+ t.job_active=1;t.cargo[0]='Y';t.cargo[1]=0;t.sequence=1;t.event_sequence=0;t.last_event[0]=0;
+ {JobJournal journal(path);journal.observe(t,7);std::this_thread::sleep_for(100ms);t.job_active=0;t.cargo[0]=0;++t.sequence;journal.observe(t,7);
+ for(int i=0;i<300&&Json::parse(journal.list())["reports"].size()<3;i++)std::this_thread::sleep_for(20ms);
+ auto list=Json::parse(journal.list());assert(list["reports"].size()==3);assert(Json::parse(journal.report(list["reports"][0]["id"]))["outcome"]=="interrupted");}
  std::filesystem::remove_all(path);
 }

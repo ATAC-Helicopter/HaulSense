@@ -12,6 +12,8 @@
 
 Optional rendered checks are reproducible with Playwright available through `NODE_PATH`: `node tests/desktop.cjs <local scene.json>` and `node tests/desktop-report.cjs <local scene.json>`. The map is private game-derived input and is not included in CI.
 
+Journal regressions also cover configuration cleared before cancellation, stale terminal-event baselines after restart, and interruption after a five-second callback grace period. Route downsampling preserves gaps while reducing the sample count.
+
 GitHub CodeQL initially reported missing worker origin checks and untrusted graph indexes. The worker now checks origins and validates numeric endpoint indexes; regression fixtures cover foreign messages and malformed edges. Packaging also clears its generated staging directory to prevent duplicate bundles on repeated runs.
 
 ## Stable release gates

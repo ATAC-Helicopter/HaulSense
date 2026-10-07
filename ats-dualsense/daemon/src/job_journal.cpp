@@ -30,7 +30,7 @@ struct JobJournal::Impl {
     std::unordered_map<std::string,std::string> reports;
     Json active=nullptr,history=Json::array();
     bool dirty=false;unsigned event_seq=0;unsigned long long frame_seq=0;
-    long long last_at=0,last_write=0;std::string error,finished_identity;unsigned finished_job_sequence=0;
+    long long last_at=0,last_write=0,job_missing_at=0;Sample missing_sample{};std::string error,finished_identity;unsigned finished_job_sequence=0;
     double speed_integral=0,previous_fuel=-1,previous_odo=-1;bool route_gap=true;
     std::thread worker;
     explicit Impl(std::string path):directory(std::move(path)),worker([this]{run();}){}
@@ -60,18 +60,22 @@ struct JobJournal::Impl {
         Json summary={{"id",id},{"outcome",outcome},{"origin",active["origin"]},{"destination",active["destination"]},{"cargo",active["cargo"]},{"finished_at_ms",sample.at},{"distance_km",active["distance_km"]}};
         history.insert(history.begin(),summary);{std::lock_guard lock(mutex);reports[id]=active.dump();}
         while(history.size()>50){std::string old=history.back()["id"];history.erase(history.size()-1);fs::remove(directory/(old+".json"));std::lock_guard lock(mutex);reports.erase(old);}
-        atomic_write(directory/"index.json",history);fs::remove(directory/"active.json");active=nullptr;dirty=false;route_gap=true;previous_fuel=previous_odo=-1;last_at=0;publish();
+        atomic_write(directory/"index.json",history);fs::remove(directory/"active.json");active=nullptr;dirty=false;job_missing_at=0;route_gap=true;previous_fuel=previous_odo=-1;last_at=0;publish();
     }
     void process(const Sample& s){
         const auto&t=s.t;
         bool job=s.protocol>=7?t.job_active:bool(t.cargo[0]);
         if(!job)finished_identity.clear();
         if(job&&!active.is_object()&&identity(t)==finished_identity&&t.job_sequence==finished_job_sequence){frame_seq=t.sequence;event_seq=t.event_sequence;return;}
-        bool event=t.event_sequence!=event_seq;
+        // The first packet is a baseline: its last event may belong to an earlier job.
+        bool event=frame_seq&&t.event_sequence!=event_seq;
         if(frame_seq&&t.sequence<frame_seq){event=false;if(active.is_object())active["gaps"]=active["gaps"].get<unsigned>()+1;route_gap=true;}
         frame_seq=t.sequence;event_seq=t.event_sequence;
-        // Configuration can clear immediately after delivery; consume each received frame, not UI polls.
-        if(active.is_object()&&identity(t)!=active["identity"].get<std::string>()&&job){finish("interrupted",s);}
+        // SDK configuration and terminal callbacks can arrive in either order.
+        bool terminal=event&&(std::string(t.last_event)=="job.delivered"||std::string(t.last_event)=="job.cancelled");
+        if(active.is_object()&&!job&&!terminal){if(!job_missing_at){job_missing_at=s.at;missing_sample=s;}route_gap=true;last_at=0;previous_fuel=previous_odo=-1;return;}
+        if(job||terminal)job_missing_at=0;
+        if(active.is_object()&&identity(t)!=active["identity"].get<std::string>()&&job&&!terminal){finish("interrupted",s);}
         if(!active.is_object()&&job&&!t.paused){
             active={{"schema",1},{"id",std::to_string(s.at)},{"identity",identity(t)},{"game",t.game==1?"ats":t.game==2?"ets2":"unknown"},{"cargo",t.cargo},{"cargo_mass_kg",static_cast<double>(t.cargo_mass)},{"truck",std::string(t.truck_brand)+" "+t.truck_name},{"origin",t.origin},{"destination",t.destination},{"started_at_ms",s.at},{"observed_seconds",0.0},{"moving_seconds",0.0},{"idle_seconds",0.0},{"overspeed_seconds",0.0},{"distance_km",0.0},{"fuel_used_l",0.0},{"refuelled_l",0.0},{"peak_speed_kmh",0.0},{"cargo_damage_start",channel_available(t,CHANNEL_cargo_damage)?Json(static_cast<double>(t.cargo_damage)):Json(nullptr)},{"cargo_damage_end",nullptr},{"wear_start",static_cast<double>(t.max_wear)},{"wear_end",static_cast<double>(t.max_wear)},{"fines",Json::array()},{"tolls",Json::array()},{"transport_costs",Json::array()},{"route",Json::array()},{"gaps",0},{"route_samples_dropped",0},{"distance_available",channel_available(t,CHANNEL_odometer)},{"fuel_available",channel_available(t,CHANNEL_fuel)},{"speed_available",channel_available(t,CHANNEL_speed_mps)},{"speed_limit_available",channel_available(t,CHANNEL_nav_speed_limit)},{"coverage","Observed segment only; recording may begin after job acceptance."}};
             speed_integral=0;previous_fuel=previous_odo=-1;last_at=0;route_gap=true;dirty=true;
@@ -97,7 +101,7 @@ struct JobJournal::Impl {
                 if(route_gap&&!route.empty()&&!route.back().is_null())route.push_back(nullptr);
                 if(append||route_gap){route.push_back({static_cast<double>(t.world_x),static_cast<double>(t.world_z),static_cast<double>(t.world_y),s.at});route_gap=false;}
                 // Downsample entire history rather than dropping the start of the travelled route.
-                if(route.size()>10000){Json reduced=Json::array();for(size_t i=0;i<route.size();i++)if(i%2==0||route[i].is_null())reduced.push_back(route[i]);if(reduced.back()!=route.back())reduced.push_back(route.back());active["route_samples_dropped"]=active["route_samples_dropped"].get<unsigned>()+route.size()-reduced.size();route=std::move(reduced);}
+                if(route.size()>10000){Json reduced=Json::array();size_t samples=0;bool gap=false;for(size_t i=0;i<route.size();i++){if(route[i].is_null()){gap=true;continue;}if(samples++%2==0||i+1==route.size()){if(gap&&!reduced.empty())reduced.push_back(nullptr);reduced.push_back(route[i]);gap=false;}}active["route_samples_dropped"]=active["route_samples_dropped"].get<unsigned>()+route.size()-reduced.size();route=std::move(reduced);}
             }else route_gap=true;
             dirty=true;
         }
@@ -124,6 +128,7 @@ struct JobJournal::Impl {
                 Sample sample{};bool got=false,ending=false;
                 {std::unique_lock lock(mutex);wake.wait_for(lock,std::chrono::milliseconds(250),[this]{return stop||!queue.empty();});ending=stop&&queue.empty();if(!queue.empty()){sample=queue.front();queue.pop_front();got=true;}}
                 if(got)process(sample);
+                if(active.is_object()&&job_missing_at&&epoch_ms()-job_missing_at>=5000){missing_sample.at=epoch_ms();finish("interrupted",missing_sample);}
                 if(dirty&&(ending||epoch_ms()-last_write>=5000)){active["speed_integral"]=speed_integral;atomic_write(directory/"active.json",active);last_write=epoch_ms();dirty=false;publish();}
                 if(ending)break;
             }

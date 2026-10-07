@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased — embedded versioned maps and driving scene
+## Unreleased — reconstructed roads and street furniture
+
+- Rebuilt physical sign faces from extracted names, dimensions and text: octagonal STOP, inverted-triangle yield, speed limits, warnings, route shields and green/blue/brown guide boards. Faces follow mapped yaw and attach to boards; atlas token labels no longer float above the street. Unknown numbers/directions remain unknown.
+- Added a single bounded sign-face atlas, double-post/overhead supports, traffic-head backplates/visors and shared mast arms grouped by mapped approach. Gate, fuel and crossing controllers no longer become ordinary traffic lights.
+- Fresh provider states now colour existing, uniquely matched mapped heads; ambiguous/unmapped positions remain uncoloured instead of spawning camera-facing duplicate poles.
+- Corrected constant-width road joins, reconstructed median separation, per-vertex junction elevation and curved paved lane connections. Schematic stop bars derive from control points; original material markings are not decoded.
+- Added clearer daylight/fog, lower chase framing, a more detailed generic cab, and roof/window bands on building proxies. Large uncertain bounds intersecting roads use outlines, keeping the navigator readable.
+- Added sign/orientation/profile/grouping/bounds regressions and real browser checks for fresh/stale lamps, mismatches, camera modes and bounded resources. Real game-mesh fidelity and sustained live driving remain unqualified.
+
+### Embedded versioned maps
+
 
 - Removed map file selection/forget controls. Standalone loads compressed game-matching app resources directly and ignores obsolete IndexedDB imports.
 - Added automatic Steam library discovery, version-archive/content inventory compatibility checks, bounded gzip decoding and pack checksum validation. Incompatible packs are disabled after game/DLC changes.

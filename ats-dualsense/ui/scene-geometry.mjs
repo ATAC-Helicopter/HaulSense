@@ -2,9 +2,12 @@
 export function framePath(input) {
  const points=input.filter((p,i)=>!i||Math.hypot(p[0]-input[i-1][0],p[1]-input[i-1][1])>.001);
  return points.map((p,i)=>{
-  const a=points[Math.max(0,i-1)],b=points[Math.min(points.length-1,i+1)];
-  const length=Math.hypot(b[0]-a[0],b[1]-a[1])||1;
-  return {p,n:[-(b[1]-a[1])/length,(b[0]-a[0])/length]};
+  const normal=(a,b)=>{const length=Math.hypot(b[0]-a[0],b[1]-a[1])||1;return [-(b[1]-a[1])/length,(b[0]-a[0])/length];};
+  const before=normal(points[Math.max(0,i-1)],p),after=normal(p,points[Math.min(points.length-1,i+1)]);
+  if(!i)return {p,n:after};if(i===points.length-1)return {p,n:before};
+  const nx=before[0]+after[0],nz=before[1]+after[1],length=Math.hypot(nx,nz);
+  if(length<.01)return {p,n:after};const n=[nx/length,nz/length],gain=Math.min(2.2,1/Math.max(.2,n[0]*after[0]+n[1]*after[1]));
+  return {p,n:[n[0]*gain,n[1]*gain]};
  });
 }
 export function strip(input,left,right,origin,rise=0) {

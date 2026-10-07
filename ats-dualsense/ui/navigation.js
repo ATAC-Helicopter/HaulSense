@@ -116,7 +116,7 @@ function createNavigator({document,window}) {
   if(perspective&&visible&&roads.version===2&&window.HaulSenseScene&&!sceneFailed){
    try{if(!scene)scene=window.HaulSenseScene(el('road-scene'));el('road-scene').hidden=false;
     scene.update({data:roads,visible,position:p,heading:t.heading,pitch:t.pitch,roll:t.roll,trailerConnected:t.trailer_connected,lights:!!(t.low_beam||t.high_beam||t.parking_lights),chase:chase&&!north,north,zoom,layers,route:routePoints,trace,signals,width:w,height:h});
-    texts('scene-status',`${visible.prefabs.length} nearby prefabs · ${visible.objects.length} objects · ${visible.signs.length} signs. Original low-poly proxies · fresh provider states only.`);
+    const detail=scene.stats();texts('scene-status',`${visible.objects.length} mapped objects · ${visible.signs.length} signs · ${detail.signalHousings} reconstructed signal heads.`+(detail.unmatchedSignals?` ${detail.unmatchedSignals} live signals have no unambiguous map match.`:' Fresh matched signal colours only.'));
     return;
    }catch(error){sceneFailed=true;if(scene){scene.dispose();scene=null;}texts('scene-status','WebGL unavailable · using the 2D/perspective map.');}
   }

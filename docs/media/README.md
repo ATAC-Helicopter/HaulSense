@@ -15,3 +15,5 @@ These are rendered software views, not in-game capture or evidence of physical D
 The images prove rendered layout only. Live provider transitions, sustained driving performance and v7 delivery remain qualification gates.
 
 - `procedural-chase-demo.png`: original synthetic road/house/tree/lamp scene and provider-state fixtures, rendered by the real navigator. Shows the generic truck/trailer chase camera; no real driving or vegetation extraction is implied.
+
+The refreshed `procedural-chase-demo.png` (2026-10-07) shows original synthetic STOP/yield/speed/route/guide fixtures, fixed signal orientation and the reconstructed street/cab style. The explicit capture badge is a fixture label. It is not an in-game capture and does not qualify exact game mesh/layout fidelity.

@@ -4,7 +4,7 @@ const localMaps=process.argv.includes('--local-maps');
 (async()=>{
  const provider=path.resolve(__dirname,'../../build/ets2la-provider/ets2la_plugin.dll');
  const expected='0e1893719f84f28079857451b82a22a263401d98b8fc299cd561eb7695bfa88f';let providerBytes;
- try{providerBytes=await fs.readFile(provider);}catch(error){if(error.code!=='ENOENT')throw error;const response=await fetch('https://raw.githubusercontent.com/ETS2LA/ETS2LA/41945bc41e36191fbdf277c7fa6f7dd6f101d679/Assets/SDKs/1.61/Windows/ets2la_plugin.dll',{signal:AbortSignal.timeout(90000)});if(!response.ok||Number(response.headers.get('content-length'))>1024*1024)throw Error('Provider download failed');providerBytes=Buffer.from(await response.arrayBuffer());}
+ try{providerBytes=await require('./maps.cjs').regular(provider,1024*1024);}catch(error){if(error.code!=='ENOENT')throw error;await require('node:util').promisify(require('node:child_process').execFile)('bash',[path.resolve(__dirname,'../scripts/download-signal-provider.sh')],{timeout:100000});providerBytes=await require('./maps.cjs').regular(provider,1024*1024);}
  if(providerBytes.length>1024*1024||require('./maps.cjs').digest(providerBytes)!==expected)throw Error('Provider checksum mismatch');
  const {packager}=await import('@electron/packager');
  const output=path.resolve(__dirname,'../../build/desktop');

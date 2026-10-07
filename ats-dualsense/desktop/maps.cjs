@@ -4,7 +4,11 @@ const fs=require('node:fs/promises'),path=require('node:path'),crypto=require('n
 const GAMES={ats:{id:'270880',directory:'American Truck Simulator'},ets2:{id:'227300',directory:'Euro Truck Simulator 2'}};
 const MAX=96*1024*1024;
 const digest=data=>crypto.createHash('sha256').update(data).digest('hex');
-async function regular(file,max=MAX){const s=await fs.lstat(file);if(!s.isFile()||s.size>max)throw Error('Invalid application resource');return fs.readFile(file);}
+async function readResource(file,max=MAX){
+ const handle=await fs.open(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+ try{const stat=await handle.stat();if(!stat.isFile()||stat.size>max)throw Error('Invalid application resource');const data=Buffer.alloc(stat.size);let offset=0;while(offset<data.length){const {bytesRead}=await handle.read(data,offset,data.length-offset,offset);if(!bytesRead)throw Error('Resource changed during read');offset+=bytesRead;}const after=await handle.stat();if(after.size!==stat.size||after.mtimeMs!==stat.mtimeMs)throw Error('Resource changed during read');return {data,stat};}finally{await handle.close();}
+}
+async function regular(file,max=MAX){return (await readResource(file,max)).data;}
 async function libraries(home){
  const roots=[path.join(home,'.steam','steam'),path.join(home,'.local','share','Steam'),path.join(home,'.var','app','com.valvesoftware.Steam','data','Steam')];const result=new Set();
  for(const root of roots){try{const vdf=await fs.readFile(path.join(root,'steamapps','libraryfolders.vdf'),'utf8');result.add(root);for(const m of vdf.matchAll(/"path"\s+"([^"\r\n]+)"/g))if(path.isAbsolute(m[1]))result.add(m[1].replace(/\\\\/g,'\\'));}catch{}}
@@ -38,4 +42,4 @@ class EmbeddedMaps{
  }
  async read(game){const {state,pack}=await this.status(game);if(!state.ready)throw Error(state.message);if(!/^(ats|ets2)-[0-9.]+\.json\.gz$/.test(pack.file))throw Error('Invalid map pack filename');const bytes=await regular(path.join(this.resources,'maps',pack.file));if(digest(bytes)!==pack.sha256)throw Error('Map pack checksum mismatch');const data=zlib.gunzipSync(bytes,{maxOutputLength:MAX});if(data.length!==pack.bytes)throw Error('Map pack size mismatch');return data;}
 }
-module.exports={EmbeddedMaps,libraries,identify,compatible,digest,regular};
+module.exports={EmbeddedMaps,libraries,identify,compatible,digest,regular,readResource};

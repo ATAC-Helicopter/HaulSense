@@ -11,9 +11,9 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
  await page.evaluate(map=>navigatorView.loadMap(map),map);
  await page.waitForFunction(()=>navigatorView.stats()?.frame>2&&navigatorView.stats()?.signals.some(s=>s.state===8));
  await page.evaluate(()=>{document.querySelector('#status').textContent='DEMO · synthetic road / signal fixtures';});
- await page.screenshot({path:'build/procedural-chase-demo.png'});const first=await page.evaluate(()=>navigatorView.stats());assert.equal(first.camera,'chase');assert(first.truck&&first.trailer);assert.equal(first.frameCap,30);assert.equal(first.signals[0].colours[2],0x83efb3);
+ await page.screenshot({path:'build/procedural-chase-demo.png'});const first=await(await page.waitForFunction(()=>{const s=navigatorView.stats();return s?.signals.some(l=>l.state===8&&l.colours[2]===0x83efb3)?s:false;})).jsonValue();assert.equal(first.camera,'chase');assert(first.truck&&first.trailer);assert.equal(first.frameCap,30);assert.equal(first.signals[0].colours[2],0x83efb3);
  x=2;z=-10;await page.waitForTimeout(600);await page.locator('#map-camera').click();await page.waitForFunction(()=>navigatorView.stats()?.camera==='overview');await page.screenshot({path:'build/procedural-overview-demo.png'});
- await page.reload();await page.waitForFunction(()=>navigatorView.stats()?.camera==='overview');await page.locator('#map-camera').click();await page.waitForFunction(()=>navigatorView.stats()?.camera==='chase');
+ await page.reload();await page.evaluate(map=>navigatorView.loadMap(map),map);await page.waitForFunction(()=>navigatorView.stats()?.camera==='overview');await page.locator('#map-camera').click();await page.waitForFunction(()=>navigatorView.stats()?.camera==='chase');
  const memories=[];for(let i=0;i<12;i++){state=i%2?2:8;await page.waitForFunction(expected=>navigatorView.stats()?.signals.some(s=>s.state===expected),state);memories.push(await page.evaluate(()=>navigatorView.stats()));}
  assert(Math.max(...memories.map(s=>s.geometries))<=first.geometries+5);assert(Math.max(...memories.map(s=>s.textures))<=first.textures+2);
  active=false;await page.waitForFunction(()=>document.querySelector('#road-scene').hidden);const paused=await page.evaluate(()=>navigatorView.stats().frame);await page.waitForTimeout(300);assert.equal(await page.evaluate(()=>navigatorView.stats().frame),paused);

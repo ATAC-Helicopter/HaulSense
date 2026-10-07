@@ -12,6 +12,8 @@
 
 Optional rendered checks are reproducible with Playwright available through `NODE_PATH`: `node tests/desktop.cjs <local scene.json>` and `node tests/desktop-report.cjs <local scene.json>`. The map is private game-derived input and is not included in CI.
 
+GitHub CodeQL initially reported missing worker origin checks and untrusted graph indexes. The worker now checks origins and validates numeric endpoint indexes; regression fixtures cover foreign messages and malformed edges. Packaging also clears its generated staging directory to prevent duplicate bundles on repeated runs.
+
 ## Stable release gates
 
 - Real ATS 1.61 and ETS2 qualification: mapped position, fresh signal transitions, GPS route matching, delivery/cancellation, report restart recovery and controller behavior.

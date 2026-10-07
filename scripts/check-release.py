@@ -10,6 +10,8 @@ assert f'HaulSense {version}' in (root/'ats-dualsense/ui/index.html').read_text(
 assert "script-src 'self' 'unsafe-inline'" not in (root/'ats-dualsense/daemon/src/dashboard.cpp').read_text()
 for html in ['index.html','hud.html']:
  assert '<script>' not in (root/'ats-dualsense/ui'/html).read_text(),'Executable inline script breaks strict CSP'
-tracked=subprocess.check_output(['git','ls-files'],cwd=root,text=True).splitlines()
+repository=subprocess.run(['git','rev-parse','--show-toplevel'],cwd=root,text=True,capture_output=True)
+tracked=subprocess.check_output(['git','ls-files'],cwd=root,text=True).splitlines() if repository.returncode==0 and Path(repository.stdout.strip()).resolve()==root.resolve() else []
+if not tracked:print('Source distribution: Git index hygiene is checked in repository CI.')
 assert not any(p.startswith(('build/','node_modules/','ats-dualsense/desktop/node_modules/')) or p.endswith(('.dll','.deb')) for p in tracked),'Generated/private artifacts tracked'
 print(f'Release identity and source hygiene passed: {version}')

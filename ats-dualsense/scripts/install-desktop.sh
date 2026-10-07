@@ -7,7 +7,7 @@ if [[ -x "$root/standalone/haulsense-app" ]]; then
 else
   npm ci --prefix "$root/ats-dualsense/desktop" --ignore-scripts --no-audit --no-fund
   node "$root/ats-dualsense/desktop/node_modules/electron/install.js"
-  npm run --prefix "$root/ats-dualsense/desktop" package
+  npm run --prefix "$root/ats-dualsense/desktop" package -- --local-maps
 fi
 install_dir="${XDG_DATA_HOME:-$HOME/.local/share}/haulsense/desktop"
 mkdir -p -- "$(dirname -- "$install_dir")" "$HOME/.local/bin"

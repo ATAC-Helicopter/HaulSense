@@ -7,6 +7,7 @@ UIDs remain strings so 64-bit identifiers never lose precision.
 import argparse
 import json
 import math
+import re
 from pathlib import Path
 from scene_map import scene_export
 
@@ -131,6 +132,12 @@ def export(source, game, region=None):
     if not roads:
         raise ValueError('No roads in export; check source and bounds')
     result = {'version': 2, 'game': game, 'coordinates': 'scs-xz-metres', 'name': f'{game.upper()} · extracted roads', 'roads': roads, 'roadStyles':styles, 'labels':labels}
+    version_file = source / f'{prefix}-version.txt'
+    if version_file.exists():
+        game_version = version_file.read_text().strip()
+        if not re.fullmatch(r'\d+\.\d+\.\d+\.\d+', game_version):
+            raise ValueError('Invalid extracted game version')
+        result['gameVersion'] = game_version
     result.update(scene_export(source, prefix, nodes, region))
     # Reject invalid source coordinates before emitting a file accepted by the UI.
     for p in [p for road in roads for p in road] + [l['position'] for l in labels]:

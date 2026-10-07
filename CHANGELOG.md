@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased — original low-poly driving scene
+## Unreleased — embedded versioned maps and driving scene
+
+- Removed map file selection/forget controls. Standalone loads compressed game-matching app resources directly and ignores obsolete IndexedDB imports.
+- Added automatic Steam library discovery, version-archive/content inventory compatibility checks, bounded gzip decoding and pack checksum validation. Incompatible packs are disabled after game/DLC changes.
+- Local packaging embeds the qualified ATS 1.61.3.1 scene (about 24 MiB compressed). Public archives exclude local game-derived data; automatic extraction for other/new versions remains unimplemented.
+- Bundled the MIT, checksum-pinned ETS2LA 1.61 provider with automatic installation for verified compatible game packs, existing DLL backups and installation/restart status. Live feed qualification remains separate from successful installation.
+- Added embedded pack selection, tampering, version/DLC changes and clean-profile app reload/restart regressions.
+
 
 - Replaced the triangle position marker with an original generic tractor and optional straight trailer proxy, following measured world pose.
 - Added a smoothed 30 FPS chase camera, persistent overview switch and shortest-angle heading interpolation; hidden/paused views stop animation.

@@ -50,6 +50,7 @@ function createNavigator({document,window}) {
  function reset(){trace=[];last=null;baseOdometer=null;previousOdometer=null;driven=0;lastSequence=null;}
  function formatKm(km,digits=0){return finite(km)?(metric?km:km/1.609344).toFixed(digits)+(metric?' km':' mi'):'—';}
  function update(s,isMetric=true){
+  if(Date.now()-lastMapCheck>5000)restoreMap();
   metric=isMetric;current=s;
   const t=s.active?s.telemetry:{},p=t.world_position;
   if(lastDemo!==s.demo||lastGame!==t.game&&s.active){reset();routePoints=[];gpsUntil=0;gpsKey='';gpsFailedKey='';routeRequest++;routePending=false;routeGoal=null;lastDemo=s.demo;if(s.active)lastGame=t.game;}
@@ -141,7 +142,7 @@ function createNavigator({document,window}) {
   c.shadowColor='#d8ee8680';c.shadowBlur=18;c.fillStyle='#d8ee86';c.strokeStyle='#0b141a';c.lineWidth=2;c.beginPath();c.moveTo(0,-15);c.lineTo(11,12);c.lineTo(0,7);c.lineTo(-11,12);c.closePath();c.fill();c.stroke();c.restore();
   c.font='10px system-ui';c.fillStyle='#8096a4';c.textAlign='left';c.fillText('SCS WORLD · '+(perspective?'PERSPECTIVE':'2D'),16,h-16);
  }
- function loadMap(data){mapRevision++;const candidate=validateMap(data);candidate.bounds=candidate.roads.map(r=>{const b=[Infinity,Infinity,-Infinity,-Infinity];for(const [x,z]of r){b[0]=Math.min(b[0],x);b[1]=Math.min(b[1],z);b[2]=Math.max(b[2],x);b[3]=Math.max(b[3],z);}return b;});buildSceneIndex(candidate);roads=candidate;mapError='';if(scene){scene.dispose();scene=null;}sceneFailed=false;setupRouting();el('map-unload').hidden=false;if(current)update(current,metric);}
+ function loadMap(data){mapRevision++;const candidate=validateMap(data);candidate.bounds=candidate.roads.map(r=>{const b=[Infinity,Infinity,-Infinity,-Infinity];for(const [x,z]of r){b[0]=Math.min(b[0],x);b[1]=Math.min(b[1],z);b[2]=Math.max(b[2],x);b[3]=Math.max(b[3],z);}return b;});buildSceneIndex(candidate);roads=candidate;mapError='';if(scene){scene.dispose();scene=null;}sceneFailed=false;setupRouting();if(current)update(current,metric);}
 
  function buildSceneIndex(data){
   const grid=new Map(),size=500;
@@ -207,8 +208,6 @@ function createNavigator({document,window}) {
  el('route-destination').addEventListener('change',()=>{routeRequest++;routePending=false;routeGoal=null;gpsUntil=0;routeSource=null;gpsKey='';routePoints=[];texts('gps-status','Automatic mode can use the game GPS; selected cities use HaulSense routing.');maybeRoute(true);});
  el('route-plan').addEventListener('click',()=>{routeReady=!!routeWorker;maybeRoute(true);});
  el('route-clear').addEventListener('click',()=>{routePoints=[];routeGoal=null;routeRequest++;lastRoutePosition=null;routePending=false;routeReady=false;texts('route-status','Route cleared. Calculate route to start again.');draw();});
- el('map-file').addEventListener('change',async()=>{const file=el('map-file').files?.[0];if(!file)return;mapRevision++;try{if(file.size>limit.bytes)throw Error('Map exceeds 96 MiB. Export a smaller region.');loadMap(JSON.parse(await file.text()));try{await window.HaulSenseStorage?.saveMap(file,file.name);texts('map-storage','Saved on this device · restored automatically next launch');}catch(error){texts('map-storage','Map loaded, but persistence failed: '+error.message);}}catch(e){mapError='Map not loaded: '+e.message;text('map-note',mapError);}finally{el('map-file').value='';}});
- el('map-unload').addEventListener('click',()=>{mapRevision++;window.HaulSenseStorage?.forgetMap().then(()=>texts('map-storage','Saved map removed')).catch(error=>texts('map-storage',error.message));roads=null;mapError='';stopRouting();if(scene){scene.dispose();scene=null;}el('road-scene').hidden=true;el('map-unload').hidden=true;if(current)update(current,metric);});
  el('map-perspective').addEventListener('click',()=>{perspective=!perspective;el('map-perspective').setAttribute('aria-pressed',String(perspective));el('map-perspective').textContent=perspective?'3D / Perspective':'2D';if(current)update(current,metric);});
  el('map-camera').setAttribute('aria-pressed',String(chase));el('map-camera').textContent=chase?'Chase camera':'Overview camera';
  el('map-camera').addEventListener('click',()=>{chase=!chase;if(chase){north=false;el('map-north').setAttribute('aria-pressed','false');}el('map-camera').setAttribute('aria-pressed',String(chase));el('map-camera').textContent=chase?'Chase camera':'Overview camera';window.HaulSenseStorage?.remember({camera:chase?'chase':'overview'});draw();});
@@ -216,12 +215,16 @@ function createNavigator({document,window}) {
  el('map-zoom-in').addEventListener('click',()=>{zoom=Math.min(4,zoom*1.4);draw();});el('map-zoom-out').addEventListener('click',()=>{zoom=Math.max(.25,zoom/1.4);draw();});
  el('map-clear').addEventListener('click',()=>{trace=[];last=null;draw();});el('trip-reset').addEventListener('click',()=>{reset();if(current)update(current,metric);});
  el('map-fullscreen').addEventListener('click',async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await el('navigator').requestFullscreen();}catch{ text('map-note','Fullscreen unavailable in this browser.');}});
- async function restoreMap(){const revision=mapRevision;try{const entry=await window.HaulSenseStorage.readMap();if(revision!==mapRevision)return;
-   let blob=entry?.blob,name=entry?.name||'Installed local map';
-   if(!blob&&window.location?.protocol==='haulsense:'){const response=await window.fetch('/api/map');if(response.ok)blob=await response.blob();}
-   if(!blob)return;if(blob.size>limit.bytes)throw Error('Saved map exceeds import limit');texts('map-storage','Restoring '+name+'…');const data=JSON.parse(await blob.text());if(revision!==mapRevision)return;loadMap(data);texts('map-storage','Restored automatically · saved on this device');if(!entry)await window.HaulSenseStorage.saveMap(blob,name);
-  }catch(error){texts('map-storage','Saved map unavailable: '+error.message);}}
- if(window.HaulSenseStorage)restoreMap();
+ let embeddedId=null,mapChecking=false,lastMapCheck=0;
+ function clearEmbeddedMap(){mapRevision++;roads=null;stopRouting();if(scene){scene.dispose();scene=null;}el('road-scene').hidden=true;embeddedId=null;el('map-storage').dataset.mapReady='false';}
+ async function restoreMap(){if(mapChecking||window.location?.protocol!=='haulsense:')return;mapChecking=true;lastMapCheck=Date.now();try{
+   const response=await window.fetch('/api/map-status');if(!response.ok)throw Error('Map compatibility check unavailable');const status=await response.json();texts('map-storage',status.message);
+   if(!status.ready){if(roads)clearEmbeddedMap();return;}
+   if(!current?.active){const message=status.provider==='installed'?'Integrated provider ready · waiting for live game telemetry':status.provider==='restart-required'?'Integrated provider installed · restart the game to connect':status.provider==='unsupported-version'?'Live provider has no compatible build for this game version':'Integrated provider setup failed · check game folder permissions';texts('signal-status',message);texts('gps-status',message);}
+   if(status.id===embeddedId)return;
+   clearEmbeddedMap();const revision=mapRevision;texts('map-storage','Loading embedded '+status.game.toUpperCase()+' '+status.version+' map…');const mapResponse=await window.fetch('/api/map');if(!mapResponse.ok)throw Error('Matching embedded map unavailable');const blob=await mapResponse.blob();if(blob.size>limit.bytes)throw Error('Embedded map exceeds limit');const data=JSON.parse(await blob.text());if(revision!==mapRevision)return;if(data.game!==status.game||data.gameVersion!==status.version)throw Error('Embedded map identity mismatch');loadMap(data);embeddedId=status.id;el('map-storage').dataset.mapReady='true';texts('map-storage',status.message);
+  }catch(error){clearEmbeddedMap();texts('map-storage',error.message);}finally{mapChecking=false;}}
+ if(window.location?.protocol==='haulsense:')restoreMap();else texts('map-storage','Embedded game maps are available in the standalone app.');
  document.addEventListener('fullscreenchange',draw);window.addEventListener('resize',draw);
  return {update,draw,loadMap,validateMap,queryScene,stats:()=>scene?.stats()};
 }

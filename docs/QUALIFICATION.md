@@ -138,3 +138,9 @@ This supersedes the earlier centerline-only navigator limitations; those dated r
 - Live v6 game-driving/map alignment, road width accuracy, original scenery reconstruction, complete DLC/mod coverage, ferry/restriction routing and a long-haul performance run remain open. Existing physical controller qualification is separate.
 
 - Installed daemon and all served JavaScript assets match the tested build; `haulsense.service` is active. Prior executable/DLL and unchanged config/HUD preferences were preserved in `build/pre-scene-install-20261007-070558/`. This scene update did not replace the already installed v6 DLL or restart ATS. The provider endpoint reports unavailable on the actual installed service.
+
+## Embedded maps qualification (2026-10-07)
+
+Local ATS 1.61.3.1 pack (about 24 MiB gzip) loaded from standalone resources with a clean Electron profile, after reload and after full app restart. A deliberately incompatible legacy IndexedDB entry was ignored; no file input exists. Telemetry sequence advanced while minimized. The actual installed packaged application was launched without `--no-sandbox`, selected the archive-matching pack, exposed no renderer Node access and reported no page errors. Native CTest (6/6), real-socket integration, desktop map/policy tests, converter and DOM/geometry/routing regressions passed. Pack tests reject tampering, game-version changes, added DLC and missing archives.
+
+This verifies map packaging/loading and installer identity, not live driving alignment or live semaphore/GPS freshness. The installed MIT provider hash matches the pin. No ETS2 map is locally qualified. Fresh public installations and future game versions still need a prepared matching embedded pack; arbitrary-version automatic extraction is not implemented. Active map mods are not included in the base/DLC content identity.

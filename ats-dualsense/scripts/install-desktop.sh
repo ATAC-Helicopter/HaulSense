@@ -2,7 +2,9 @@
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 app_dir="$root/build/desktop/HaulSense-linux-x64"
-if [[ ! -x "$app_dir/haulsense-app" ]]; then
+if [[ -x "$root/standalone/haulsense-app" ]]; then
+  app_dir="$root/standalone"
+else
   npm ci --prefix "$root/ats-dualsense/desktop" --ignore-scripts --no-audit --no-fund
   node "$root/ats-dualsense/desktop/node_modules/electron/install.js"
   npm run --prefix "$root/ats-dualsense/desktop" package

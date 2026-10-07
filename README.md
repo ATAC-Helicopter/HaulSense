@@ -21,6 +21,10 @@
 - **DualSense immersion:** adaptive L2 braking, restrained R2/road texture and short event cues. Mirrored standard generations 4/5 show individual turns in the HUD/cockpit; white LEDs handle lights/hazards. Independent revisions retain directional masks. Unknown revisions/Edge and broader USB/Bluetooth firmware coverage remain qualification work.
 - **Local by design:** no accounts, cloud reporting, advertising, analytics or remote UI scripts/fonts. The standalone renderer has no Node access. Maps, preferences and job reports remain on your device.
 
+## Install a prepared bundle
+
+Extract the candidate archive and run `./standalone/haulsense-app`, or use `./ats-dualsense/scripts/install-desktop.sh` to install its launcher. The prepared desktop needs no Node installation. Run `install-all.sh` for the service/game plugin setup; it preserves existing settings. Restart ATS afterwards.
+
 ## Install from source
 
 Linux x86-64, GCC 11+/Clang with C++20, CMake 3.20+, Node.js 24/npm for desktop packaging, Clang/LLD for the freestanding Windows DLL. The desktop bundle contains Electron; users of a prepared bundle need no Node installation. USB/Bluetooth output uses the kernel `hid-playstation` driver; udev setup can require sudo.

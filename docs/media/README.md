@@ -13,3 +13,5 @@ These are rendered software views, not in-game capture or evidence of physical D
 - `standalone-job-report-demo.png`: actual rendered journal view with explicitly synthetic delivery values and a sampled mapped route; it is not a driven delivery. The native save-dialog export was also verified.
 
 The images prove rendered layout only. Live provider transitions, sustained driving performance and v7 delivery remain qualification gates.
+
+- `procedural-chase-demo.png`: original synthetic road/house/tree/lamp scene and provider-state fixtures, rendered by the real navigator. Shows the generic truck/trailer chase camera; no real driving or vegetation extraction is implied.

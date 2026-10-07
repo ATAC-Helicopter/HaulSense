@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — original low-poly driving scene
+
+- Replaced the triangle position marker with an original generic tractor and optional straight trailer proxy, following measured world pose.
+- Added a smoothed 30 FPS chase camera, persistent overview switch and shortest-angle heading interpolation; hidden/paused views stop animation.
+- Added joined elevated road ribbons, asymmetric carriageways, shoulders, edge/centre lines and dashed lane dividers using simple geometry. Intersection navigation curves remain routing data, not invented lane paint.
+- Added original procedural house roofs, vegetation/lamp/bollard proxies where the map supplies them, physical sign boards, mapped divider rails and three-lamp semaphore housings. Fresh provider colours remain distinct from unknown static lights.
+- Uses solid flat colours and instanced primitives; only small local sign-text canvases use textures. No ETS2LA renderer code, original game meshes/textures, invented prop placements or real trailer articulation are included.
+- Added geometry/input bounds, camera/visibility/lamp/memory render regressions and labelled synthetic scene screenshots. Real driving alignment and sustained performance still require qualification.
+
 ## 1.0.0-rc.1 — standalone navigator and job journal
 
 - Added a sandboxed Electron desktop with persistent local origin/map cache, native menu/export, bounded background updates and revised route-first cockpit.

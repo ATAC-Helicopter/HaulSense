@@ -51,6 +51,7 @@ jobs:
           NODE_PATH="$PWD/.test-deps/node_modules" node tests/hud.mjs
           NODE_PATH="$PWD/.test-deps/node_modules" node tests/navigation.mjs
           node tests/routing.cjs
+          node tests/scene-geometry.mjs
           NODE_PATH="$PWD/.test-deps/node_modules" node tests/jobs.mjs
       - name: Package standalone desktop
         run: |

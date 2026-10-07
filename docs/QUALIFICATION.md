@@ -1,5 +1,11 @@
 # Qualification evidence — 1.0.0-rc.1
 
+## Original procedural scene (2026-10-07)
+
+- Original synthetic road/house/tree/lamp fixtures rendered with a generic truck and coupled straight trailer, chase/overview switching, persistent camera, pause/resume and green/red provider-fixture lamp material checks. The fixture rendered 41 draw calls, 1,386 triangles, 12 geometries and two locally generated text textures. No renderer errors; repeated state updates kept geometry/texture counts bounded.
+- The private extracted ATS scene also passed the GPS/UID-mismatch/pause/game-mismatch/context-loss rendered regression. A sampled update rendered 44 draw calls and 91,842 triangles with nine geometries and ten text textures; JavaScript scene input updates sampled 0.5–1.2 ms. This excludes GPU frame completion and is not a sustained live-driving performance qualification.
+- Geometry tests cover elevation, connected ribbons, dash spacing, local origin precision, classification, heading wrap and extreme input bounds. Live truck/road vertical alignment and trailer articulation remain unqualified; dimensions and chassis offset are generic proxies.
+
 ## Candidate checks (2026-10-07)
 
 - Six native Release tests and six UndefinedBehaviorSanitizer tests pass, including the semaphore ABI, route reader, typed delivery events and durable journal. The sanitizer found an unaligned packed-field reference in journal serialization; numeric values now copy into aligned JSON values.

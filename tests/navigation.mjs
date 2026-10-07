@@ -36,3 +36,6 @@ assert.throws(()=>nav.validateMap({...rich,graph:{...rich.graph,edges:[[0,2,20]]
 assert.throws(()=>nav.validateMap({...rich,objects:[[42,0,0,0,0,1,1,1]]}));
 assert.throws(()=>nav.validateMap({...rich,signs:[[0,0,0,0,-1,42]]}));
 console.log('Detailed scene: graph reference, model index and sign text validation passed.');
+
+assert.throws(()=>nav.validateMap({...rich,roadStyles:[[1e7,1,0,0,0]]}));
+assert.throws(()=>nav.validateMap({...rich,roadStyles:[[1.5,1,0,0,0]]}));

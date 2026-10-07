@@ -6,14 +6,14 @@
 
 [Project](https://fglabs.dev/projects/haulsense) · [Releases](https://github.com/FGLabs-dev/HaulSense/releases) · [Issues](https://github.com/FGLabs-dev/HaulSense/issues) · [Security reporting](https://github.com/FGLabs-dev/HaulSense/security/advisories/new)
 
-![Standalone cockpit — DEMO telemetry and schematic road scene](docs/media/standalone-desktop-demo.png)
+![Original chase camera — synthetic road, truck and signal fixtures](docs/media/procedural-chase-demo.png)
 
 ![Job report — synthetic demonstration, not a driven delivery](docs/media/standalone-job-report-demo.png)
 
 ## The app
 
 - **Standalone cockpit:** an isolated Electron window, native menu, persistent units/window size and updates that continue outside focus. The C++ service keeps the 50 Hz controller path separate from rendering. A browser interface remains available at `http://127.0.0.1:39056`.
-- **Local navigator:** WebGL 3D, 2D fallback, follow/north-up, zoom, fullscreen and optional scenery layers. Extracted roads include elevation, prefab intersections, sign text, dividers and POIs. Buildings/props use measured bounds, not original meshes/textures. Maps restore automatically after their first import. The desktop can also load an installed local map automatically.
+- **Local navigator:** Original low-poly WebGL 3D with a smoothed truck chase camera, persistent overview mode, 2D fallback, north-up, zoom, fullscreen and optional scenery layers. Extracted roads include elevation, prefab intersections, sign text, dividers and POIs. Road markings, house roofs, sign boards, divider rails and signal housings use simple geometry; model proxies use measured bounds and imported placements. Truck/trailer shapes are generic, and original game meshes/textures are not included. Maps restore automatically after their first import. The desktop can also load an installed local map automatically.
 - **Future route:** an independent directed road/prefab router with city/job destination selection, plus the optional game GPS feed from ETS2LA. The source is always labelled; the independent path can differ from game GPS preferences.
 - **Actual semaphore states:** the optional ETS2LA 1.61 provider supplies red/amber/green/off/flashing states, position and remaining time. Missing/stale feeds clear the colours. The nearest signal is not assumed to control your approach. This uses live provider data, not a guessed timer.
 - **Job log:** the service records the observed travelled route, distance, real moving/stopped time, speed, fuel, cargo condition, fines, tolls and transport payments. V7 adds the game's delivery revenue, XP, job distance/time and parking/loading flags. Completed/cancelled jobs are retained locally with JSON export; active recording survives a clean service restart. Coverage gaps and partial observations are explicit.

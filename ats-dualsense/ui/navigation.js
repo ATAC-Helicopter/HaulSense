@@ -3,7 +3,7 @@
 function createNavigator({document,window}) {
  const el=id=>document.getElementById(id), text=(id,v)=>{el(id).textContent=v;};
  const finite=v=>typeof v==='number'&&Number.isFinite(v), validPoint=p=>Array.isArray(p)&&p.length===2&&p.every(v=>finite(v)&&Math.abs(v)<1e8);
- let perspective=true,north=false,zoom=1,roads=null,trace=[],last=null,baseOdometer=null,previousOdometer=null,driven=0,lastSequence=null,lastDemo=null,lastGame=null;
+ let chase=window.HaulSenseStorage?.settings().camera!=='overview';let perspective=true,north=false,zoom=1,roads=null,trace=[],last=null,baseOdometer=null,previousOdometer=null,driven=0,lastSequence=null,lastDemo=null,lastGame=null;
  let signals=[],signalPolling=false,lastSignalPoll=0,signalExpiry=0,mapRevision=0;
  let current=null,metric=true,mapError='',scene=null,sceneFailed=false;
  let routeWorker=null,routeReady=false,routePoints=[],routeRequest=0,routePending=false,routeGoal=null,lastRoutePosition=null,lastRouteAt=0,routeSource=null;
@@ -43,7 +43,7 @@ function createNavigator({document,window}) {
    for(const p of data.prefabs)if(!Array.isArray(p)||p.length!==6||!index(p[0],data.templates.length)||!vector(p.slice(1,5),4)||!Array.isArray(p[5])||p[5].length!==data.templates[p[0]].nodes.length||p[5].some(i=>i!==-1&&!index(i,graph.nodes.length)))throw Error('Invalid prefab placement.');
    for(const b of data.barriers)if(!Array.isArray(b)||!Array.isArray(b[0])||b[0].length<2||b[0].some(p=>!vector(p,3))||typeof b[1]!=='string'||b[1].length>256)throw Error('Invalid barrier.');
    for(const p of data.pois)if(!Array.isArray(p)||p.length!==5||!vector(p.slice(0,2),2)||p.slice(2).some(s=>typeof s!=='string'||s.length>180))throw Error('Invalid point of interest.');
-   if(data.roadStyles&&(!Array.isArray(data.roadStyles)||data.roadStyles.length!==data.roads.length||data.roadStyles.some(s=>!vector(s,5))))throw Error('Invalid road style.');
+   if(data.roadStyles&&(!Array.isArray(data.roadStyles)||data.roadStyles.length!==data.roads.length||data.roadStyles.some(s=>!vector(s,5)||s.slice(0,2).some(n=>!Number.isInteger(n)||n<0||n>32)||s[2]<0||s.slice(2).some(n=>n< -1||n>1000))))throw Error('Invalid road style.');
   }
   return {...data,name:typeof data.name==='string'?data.name.slice(0,100):data.game.toUpperCase(),labels};
  }
@@ -114,8 +114,8 @@ function createNavigator({document,window}) {
   const visible=roads&&roads.game===t.game?queryScene(roads,p[0],p[2],Math.min(2400/zoom,1400)):null;
   if(perspective&&visible&&roads.version===2&&window.HaulSenseScene&&!sceneFailed){
    try{if(!scene)scene=window.HaulSenseScene(el('road-scene'));el('road-scene').hidden=false;
-    scene.update({data:roads,visible,position:p,heading:t.heading,north,zoom,layers,route:routePoints,trace,signals,width:w,height:h});
-    texts('scene-status',`${visible.prefabs.length} nearby prefabs · ${visible.objects.length} objects · ${visible.signs.length} signs. Measured bounds; signal phases unknown.`);
+    scene.update({data:roads,visible,position:p,heading:t.heading,pitch:t.pitch,roll:t.roll,trailerConnected:t.trailer_connected,lights:!!(t.low_beam||t.high_beam||t.parking_lights),chase:chase&&!north,north,zoom,layers,route:routePoints,trace,signals,width:w,height:h});
+    texts('scene-status',`${visible.prefabs.length} nearby prefabs · ${visible.objects.length} objects · ${visible.signs.length} signs. Original low-poly proxies · fresh provider states only.`);
     return;
    }catch(error){sceneFailed=true;if(scene){scene.dispose();scene=null;}texts('scene-status','WebGL unavailable · using the 2D/perspective map.');}
   }
@@ -210,7 +210,9 @@ function createNavigator({document,window}) {
  el('map-file').addEventListener('change',async()=>{const file=el('map-file').files?.[0];if(!file)return;mapRevision++;try{if(file.size>limit.bytes)throw Error('Map exceeds 96 MiB. Export a smaller region.');loadMap(JSON.parse(await file.text()));try{await window.HaulSenseStorage?.saveMap(file,file.name);texts('map-storage','Saved on this device · restored automatically next launch');}catch(error){texts('map-storage','Map loaded, but persistence failed: '+error.message);}}catch(e){mapError='Map not loaded: '+e.message;text('map-note',mapError);}finally{el('map-file').value='';}});
  el('map-unload').addEventListener('click',()=>{mapRevision++;window.HaulSenseStorage?.forgetMap().then(()=>texts('map-storage','Saved map removed')).catch(error=>texts('map-storage',error.message));roads=null;mapError='';stopRouting();if(scene){scene.dispose();scene=null;}el('road-scene').hidden=true;el('map-unload').hidden=true;if(current)update(current,metric);});
  el('map-perspective').addEventListener('click',()=>{perspective=!perspective;el('map-perspective').setAttribute('aria-pressed',String(perspective));el('map-perspective').textContent=perspective?'3D / Perspective':'2D';if(current)update(current,metric);});
- el('map-north').addEventListener('click',()=>{north=!north;el('map-north').setAttribute('aria-pressed',String(north));if(current)update(current,metric);});
+ el('map-camera').setAttribute('aria-pressed',String(chase));el('map-camera').textContent=chase?'Chase camera':'Overview camera';
+ el('map-camera').addEventListener('click',()=>{chase=!chase;if(chase){north=false;el('map-north').setAttribute('aria-pressed','false');}el('map-camera').setAttribute('aria-pressed',String(chase));el('map-camera').textContent=chase?'Chase camera':'Overview camera';window.HaulSenseStorage?.remember({camera:chase?'chase':'overview'});draw();});
+ el('map-north').addEventListener('click',()=>{north=!north;if(north){chase=false;el('map-camera').setAttribute('aria-pressed','false');el('map-camera').textContent='Overview camera';window.HaulSenseStorage?.remember({camera:'overview'});}el('map-north').setAttribute('aria-pressed',String(north));if(current)update(current,metric);});
  el('map-zoom-in').addEventListener('click',()=>{zoom=Math.min(4,zoom*1.4);draw();});el('map-zoom-out').addEventListener('click',()=>{zoom=Math.max(.25,zoom/1.4);draw();});
  el('map-clear').addEventListener('click',()=>{trace=[];last=null;draw();});el('trip-reset').addEventListener('click',()=>{reset();if(current)update(current,metric);});
  el('map-fullscreen').addEventListener('click',async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await el('navigator').requestFullscreen();}catch{ text('map-note','Fullscreen unavailable in this browser.');}});

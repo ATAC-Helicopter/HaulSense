@@ -2,7 +2,7 @@
 
 `VERSION` is the native/package version source; desktop package metadata and rendered footer must match. `1.0.0-rc.1` is a candidate, not stable 1.0. Run `python3 scripts/check-release.py` before packaging.
 
-Work on a feature branch and submit a PR. The existing main ruleset requires linear history, resolved review threads and **Build and test**. Do not bypass failing checks or overwrite release tags. CodeQL/dependency review findings must be assessed even though only Build and test was historically required by the ruleset.
+Work on a feature branch and submit a PR. The main ruleset requires linear history, resolved review threads, **Build and test**, the three **CodeQL** language jobs and aggregate security result, **Dependency review** and **Secret scan**. Required checks are bound to their GitHub application IDs. Do not bypass failing checks or overwrite release tags. Assess and resolve security findings before merging.
 
 Local release gates: native Release/UBSan tests, exact v4/v5/v6/v7 and HTTP regressions, job journal resume/delivery tests, signal/route provider freshness tests, desktop isolation/background/cache tests, browser layout and report/export checks, pinned Windows DLL build, npm audit, secret scan and archive inspection. Keep fixture, rendered, actual driving and physical-controller evidence distinct.
 

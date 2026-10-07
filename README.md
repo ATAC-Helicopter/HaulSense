@@ -41,13 +41,9 @@ The app reuses `haulsense.service` when present, otherwise starts its bundled na
 
 ### Maps and live signal/GPS provider
 
-Use **Load road map** once. IndexedDB restores that map on the next launch/reload; **Forget map** removes the saved copy. The standalone also checks `${XDG_DATA_HOME:-~/.local/share}/haulsense/maps/ats.json` on its first launch. Game-derived map files are not shipped in public releases. See [export, limits and map setup](docs/WEB-NAVIGATOR.md).
+The standalone selects an embedded, compressed map automatically. There is no map file picker and old IndexedDB imports are ignored. Local packaging (`npm run --prefix ats-dualsense/desktop package -- --local-maps`, also used by the source desktop installer) embeds `build/ats-scene.json` / `build/ets2-scene.json` with extracted `gameVersion` metadata. Steam libraries are discovered automatically. The installed version archive and game/DLC archive inventory must match the pack; game/content updates disable incompatible roads instead of silently using stale data. The verified local ATS pack is **1.61.3.1**, approximately **24 MiB compressed**. ETS2 has no locally qualified embedded pack yet.
 
-For **ATS/ETS2 1.61 only**, install the separate, checksum-pinned ETS2LA provider, then restart the game:
-
-```bash
-GAME_VERSION=1.61 ATS_DIR='/path/to/American Truck Simulator' ./ats-dualsense/scripts/install-signal-provider.sh
-```
+The standalone also bundles the checksum-pinned MIT **1.61.x** ETS2LA provider and installs it automatically into a verified matching Windows game installation, backing up a different existing DLL. Its status distinguishes installation from a live connection. Restart the game after a new provider installation. Game-derived packs stay in the local application; the public source/archive excludes them. Automatic extraction for arbitrary fresh installations and future game versions is not implemented; those builds need matching map packs prepared during packaging. See [pack creation and compatibility](docs/WEB-NAVIGATOR.md).
 
 Under Wine/Proton, the provider creates `/dev/shm/ETS2LASemaphore` and `/dev/shm/ETS2LARoute`. HaulSense reads them without writing controls or injecting into game memory. Do not use this pinned provider for another game version. [Provider ABI, compatibility and freshness](docs/SIGNAL-PROVIDER.md) explains the limitations and live qualification gap.
 

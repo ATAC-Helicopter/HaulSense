@@ -8,7 +8,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
  await page.route('**/api/state',async route=>{const s=await(await route.fetch()).json();s.active=active;s.demo=false;s.telemetry={...s.telemetry,game:'ats',world_position:[x,1,z],heading:0,pitch:0,roll:0,trailer_connected:true,destination:''};await route.fulfill({json:s});});
  await page.route('**/api/signals',route=>route.fulfill({json:{source:'ets2la',available:true,fresh:active,objects:[{type:1,state,position:[7,0,-48],remaining_s:12,id:1}]}}));
  await page.goto(process.argv[2]||'http://127.0.0.1:39076');await page.waitForFunction(()=>document.querySelector('#status').textContent!=='Connecting');
- await page.locator('#map-file').setInputFiles({name:'original-demo.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(map))});
+ await page.evaluate(map=>navigatorView.loadMap(map),map);
  await page.waitForFunction(()=>navigatorView.stats()?.frame>2&&navigatorView.stats()?.signals.some(s=>s.state===8));
  await page.evaluate(()=>{document.querySelector('#status').textContent='DEMO · synthetic road / signal fixtures';});
  await page.screenshot({path:'build/procedural-chase-demo.png'});const first=await page.evaluate(()=>navigatorView.stats());assert.equal(first.camera,'chase');assert(first.truck&&first.trailer);assert.equal(first.frameCap,30);assert.equal(first.signals[0].colours[2],0x83efb3);

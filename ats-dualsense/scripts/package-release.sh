@@ -15,11 +15,13 @@ for part in config daemon plugin-win scripts systemd third_party ui; do
   cp -r "$ROOT/ats-dualsense/$part/." "$STAGE/ats-dualsense/$part/"
 done
 mkdir -p "$STAGE/ats-dualsense/desktop"
-for file in main.cjs policy.cjs package.cjs package.json package-lock.json; do install -m644 "$ROOT/ats-dualsense/desktop/$file" "$STAGE/ats-dualsense/desktop/$file"; done
+for file in main.cjs policy.cjs maps.cjs embed-maps.cjs package.cjs package.json package-lock.json; do install -m644 "$ROOT/ats-dualsense/desktop/$file" "$STAGE/ats-dualsense/desktop/$file"; done
 cp -r "$ROOT/ats-dualsense/desktop/test" "$STAGE/ats-dualsense/desktop/"
 mkdir -p "$STAGE/scripts"
 cp -r "$ROOT/scripts/." "$STAGE/scripts/"
 if [[ -x "$ROOT/build/desktop/HaulSense-linux-x64/haulsense-app" ]]; then cp -r "$ROOT/build/desktop/HaulSense-linux-x64" "$STAGE/standalone"; fi
+# Game-derived packs belong to the local installation, never the public archive.
+rm -rf -- "$STAGE/standalone/resources/maps"
 find "$STAGE" -type d -name __pycache__ -prune -exec rm -rf -- {} +
 install -m755 "$ROOT/build/ats-dualsense/daemon/haulsense" "$STAGE/ats-dualsense/bin/haulsense"
 rm -f "$STAGE/ats-dualsense/plugin-win/"*.lib "$STAGE/ats-dualsense/plugin-win/"*.obj "$STAGE/ats-dualsense/plugin-win/"*_stub.dll

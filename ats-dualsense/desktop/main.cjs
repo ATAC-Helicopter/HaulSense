@@ -1,7 +1,7 @@
 'use strict';
 const {app,BrowserWindow,Menu,protocol,session,dialog,net}=require('electron');
 const {spawn}=require('node:child_process');
-const fs=require('node:fs'),path=require('node:path'),{Readable}=require('node:stream');
+const fs=require('node:fs'),path=require('node:path');
 const {ORIGIN,allowedURL,allowedPath}=require('./policy.cjs');
 const demo=process.argv.includes('--demo');
 const service=demo?'http://127.0.0.1:39076':'http://127.0.0.1:39056';let window,ownedDaemon;
@@ -25,15 +25,15 @@ async function ensureService(){
 }
 async function start(){
  await ensureService();
+ const maps=new (require('./maps.cjs').EmbeddedMaps)(app.isPackaged?process.resourcesPath:path.resolve(__dirname,'../../build/embedded-resources'),app.getPath('home'));await maps.init();
+ async function mapGame(){try{const state=await (await net.fetch(service+'/api/state',{signal:AbortSignal.timeout(1000)})).json();if(['ats','ets2'].includes(state.telemetry?.game))return state.telemetry.game;}catch{}return maps.manifest.packs[0]?.game||'ats';}
  const ses=session.fromPartition('persist:haulsense');
  ses.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));ses.setPermissionCheckHandler(()=>false);
  ses.webRequest.onBeforeRequest((details,callback)=>callback({cancel:!allowedURL(details.url)}));
  ses.protocol.handle('haulsense',async request=>{
   const url=new URL(request.url);if(!allowedURL(request.url)||url.search||!allowedPath(url.pathname,request.method))return new Response('Not found',{status:404});
-  if(url.pathname==='/api/map'){
-   const dataHome=process.env.XDG_DATA_HOME||path.join(app.getPath('home'),'.local','share');
-   const map=path.join(dataHome,'haulsense','maps','ats.json');
-   try{const stat=await fs.promises.lstat(map);if(!stat.isFile()||stat.size>96*1024*1024)throw Error('Invalid map');return new Response(Readable.toWeb(fs.createReadStream(map)),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});}catch{return new Response('No installed map',{status:404});}
+  if(url.pathname==='/api/map-status'||url.pathname==='/api/map'){
+   try{const game=await mapGame();if(url.pathname==='/api/map-status'){const {state,pack}=await maps.status(game);return Response.json({...state,id:pack?.sha256||null},{headers:{'Cache-Control':'no-store'}});}return new Response(await maps.read(game),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});}catch{return new Response('Embedded map unavailable',{status:503});}
   }
   const headers={};if(request.method==='POST'){headers['X-HaulSense']='1';headers['Content-Type']='application/x-www-form-urlencoded';headers.Origin=service;}
   try{return await net.fetch(service+url.pathname,{method:request.method,headers,body:request.method==='POST'?await request.text():undefined,signal:AbortSignal.timeout(3000)});}catch{return new Response('Local service unavailable',{status:503});}

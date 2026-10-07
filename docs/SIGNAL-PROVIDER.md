@@ -31,3 +31,7 @@ A read-only native thread samples at 10 Hz, validates file owner/type/exact size
 `--semaphore-file PATH` selects an alternate fixture/provider file. `--route-file PATH` overrides the separate 96,000-byte route ABI; see [navigator](WEB-NAVIGATOR.md). Both feeds additionally require active non-demo telemetry.
 
 The pinned provider and file ABI were verified from first-party source/binary; native fixtures and rendered synthetic provider tests are separate from a real driving session. A successful DLL installation is not proof of live compatibility with every ATS 1.61 patch/mod or TruckersMP. Verify actual `/api/signals` freshness after game restart before treating live integration as qualified.
+
+## Standalone integration
+
+The desktop bundle carries the pinned 1.61.x provider and its MIT license. It discovers Steam installations and installs the DLL automatically only after its embedded map verifies the game version/content and names a supported 1.61.x version. Existing different DLLs are backed up; a new installation requires restarting the game. Waiting for telemetry is displayed separately from provider installation. Packaging downloads/checks the immutable DLL at build time; the renderer never downloads code. The standalone does not claim that an installed DLL alone proves a fresh live signal/GPS feed.
